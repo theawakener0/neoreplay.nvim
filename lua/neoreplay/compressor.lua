@@ -25,7 +25,7 @@ function M.compress(events)
       -- Structural boundary heuristic
       local structural_boundary = false
       -- If multiple lines changed in one event, it's likely a significant structural change (paste/delete block)
-      if event.lastline - (event.lnum - 1) > 1 or #(vim.split(event.after, "\n")) > 1 then
+      if event.lastline - (event.lnum - 1) > 1 or event.after:find("\n") then
         structural_boundary = true
       end
       -- Blank lines are boundaries

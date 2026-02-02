@@ -28,18 +28,19 @@ local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline
   local after_lines = vim.api.nvim_buf_get_lines(bufnr, firstline, new_lastline, false)
   local after_text = table.concat(after_lines, "\n")
 
-  -- Update cache
-  local next_cache = {}
-  for i = 1, firstline do
-    table.insert(next_cache, cache[i])
+  -- Update cache efficiently using table.move
+  local diff = #after_lines - (lastline - firstline)
+  if diff ~= 0 then
+    table.move(cache, lastline + 1, #cache, firstline + #after_lines + 1)
+    if diff < 0 then
+      for i = #cache + diff + 1, #cache do
+        cache[i] = nil
+      end
+    end
   end
-  for _, line in ipairs(after_lines) do
-    table.insert(next_cache, line)
+  for i, line in ipairs(after_lines) do
+    cache[firstline + i] = line
   end
-  for i = lastline + 1, #cache do
-    table.insert(next_cache, cache[i])
-  end
-  buffer_cache[bufnr] = next_cache
 
   -- Skip if no delta (sometimes happens with metadata changes)
   if before_text == after_text then return end

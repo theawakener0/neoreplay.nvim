@@ -82,22 +82,24 @@ function M.excavate(bufnr)
         end
         local before_text = table.concat(before_lines, "\n")
 
-        -- Update cache immediately from the buffer
-        local scratch_lines = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)
-        cache = scratch_lines
-
-        -- 'after' lines from the updated buffer
-        local after_lines = {}
-        for i = first + 1, new_last do
-          table.insert(after_lines, cache[i] or "")
+        -- Update cache efficiently in-place
+        local scratch_lines = vim.api.nvim_buf_get_lines(scratch, first, new_last, false)
+        local diff = #scratch_lines - (last - first)
+        if diff ~= 0 then
+          table.move(cache, last + 1, #cache, first + #scratch_lines + 1)
+          if diff < 0 then
+            for i = #cache + diff + 1, #cache do cache[i] = nil end
+          end
         end
-        local after_text = table.concat(after_lines, "\n")
+        for i, line in ipairs(scratch_lines) do
+          cache[first + i] = line
+        end
 
         table.insert(raw_events, {
           timestamp = current_timestamp,
           buf = bufnr, -- Report original bufnr
           before = before_text,
-          after = after_text,
+          after = table.concat(scratch_lines, "\n"),
           lnum = first + 1,
           lastline = last,
           new_lastline = new_last

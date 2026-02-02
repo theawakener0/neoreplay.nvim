@@ -84,6 +84,7 @@ NeoReplay works out of the box, but you can tune the experience:
 | `playback_speed` | `number` | `20.0` | Default speed for replay and exports. |
 | `vhs_theme` | `string` | `nil` | Override the VHS theme (e.g., "Nord"). |
 | `vhs_mappings` | `table` | `{}` | Key-value pairs of Neovim colorschemes to VHS themes. |
+| `keymaps` | `table` | `{}` | Optional keymaps for commands (`start`, `stop`, `play`, `chronos`). |
 
 ### Copy-Paste Config (Full)
 
@@ -94,6 +95,17 @@ require("neoreplay").setup({
   -- Map your custom colorscheme to a VHS theme
   vhs_mappings = {
     ["rose-pine"] = "Rose Pine",
+  },
+  keymaps = {
+    start = "<leader>rs",
+    stop = "<leader>rt",
+    play = "<leader>rp",
+    flex = "<leader>rf",
+    chronos = "<leader>rc",
+    clear = "<leader>rx",
+    export_gif = "<leader>rg",
+    export_mp4 = "<leader>rm",
+    record_ffmpeg = "<leader>rr",
   }
 })
 ```

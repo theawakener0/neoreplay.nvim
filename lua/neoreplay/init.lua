@@ -19,6 +19,12 @@ function M.play()
   replay.play()
 end
 
+function M.clear()
+  storage.start() -- Reset session
+  storage.stop()
+  vim.notify("NeoReplay: Session cleared.", vim.log.levels.INFO)
+end
+
 function M.chronos(opts)
   local bufnr = vim.api.nvim_get_current_buf()
   local data = chronos.excavate(bufnr)
@@ -223,6 +229,20 @@ function M.setup(opts)
   -- Export options
   vim.g.neoreplay_vhs_theme = opts.vhs_theme -- can be nil for auto-detect
   vim.g.neoreplay_vhs_mappings = opts.vhs_mappings or {}
+
+  -- Keymaps
+  if opts.keymaps then
+    local maps = opts.keymaps
+    if maps.start then vim.keymap.set('n', maps.start, M.start, { desc = "NeoReplay: Start recording" }) end
+    if maps.stop then vim.keymap.set('n', maps.stop, M.stop, { desc = "NeoReplay: Stop recording" }) end
+    if maps.play then vim.keymap.set('n', maps.play, M.play, { desc = "NeoReplay: Start replay" }) end
+    if maps.flex then vim.keymap.set('n', maps.flex, M.flex, { desc = "NeoReplay: Flex replay" }) end
+    if maps.chronos then vim.keymap.set('n', maps.chronos, M.chronos, { desc = "NeoReplay: Chronos excavation" }) end
+    if maps.clear then vim.keymap.set('n', maps.clear, M.clear, { desc = "NeoReplay: Clear session" }) end
+    if maps.export_gif then vim.keymap.set('n', maps.export_gif, M.export_gif, { desc = "NeoReplay: Export GIF" }) end
+    if maps.export_mp4 then vim.keymap.set('n', maps.export_mp4, M.export_mp4, { desc = "NeoReplay: Export MP4" }) end
+    if maps.record_ffmpeg then vim.keymap.set('n', maps.record_ffmpeg, M.record_ffmpeg, { desc = "NeoReplay: Record with FFmpeg" }) end
+  end
 end
 
 return M
