@@ -9,7 +9,22 @@ local is_playing = false
 local current_event_index = 1
 local playback_events = {}
 local target_bufnr = nil
+local replay_winid = nil
 local on_finish_callback = nil
+local last_progress = nil
+local progress_update_interval = 10
+local max_events_per_tick = 100
+local max_tick_ms = 6
+
+local function apply_event(event)
+  vim.api.nvim_buf_set_lines(target_bufnr, event.lnum - 1, event.lastline, false, event.after_lines or {})
+
+  if replay_winid and vim.api.nvim_win_is_valid(replay_winid) then
+    pcall(vim.api.nvim_win_set_cursor, replay_winid, {math.min(event.lnum, vim.api.nvim_buf_line_count(target_bufnr)), 0})
+  else
+    pcall(vim.api.nvim_win_set_cursor, 0, {math.min(event.lnum, vim.api.nvim_buf_line_count(target_bufnr)), 0})
+  end
+end
 
 function M.play(opts)
   if is_playing then return end
@@ -27,11 +42,25 @@ function M.play(opts)
   current_event_index = 1
   is_playing = true
   playback_speed = opts.speed or vim.g.neoreplay_playback_speed or 20.0
+  last_progress = nil
+  progress_update_interval = opts.progress_update_interval or 10
+  if progress_update_interval < 1 then
+    progress_update_interval = 10
+  end
+  max_events_per_tick = opts.max_events_per_tick or 100
+  if max_events_per_tick < 1 then
+    max_events_per_tick = 100
+  end
+  max_tick_ms = opts.max_tick_ms or 6
+  if max_tick_ms < 1 then
+    max_tick_ms = 6
+  end
   
   -- Create floating window
   local original_bufnr = events[1].buf
   local bufnr, winid = ui.create_replay_window(original_bufnr)
   target_bufnr = bufnr
+  replay_winid = winid
 
   if opts.title then
     vim.api.nvim_win_set_config(winid, { title = " " .. opts.title .. " " })
@@ -56,35 +85,56 @@ function M.schedule_next()
     return
   end
 
-  local event = playback_events[current_event_index]
-  local next_event = playback_events[current_event_index + 1]
-  
-  -- Apply event
-  local lines = vim.split(event.after, "\n")
-  vim.api.nvim_buf_set_lines(target_bufnr, event.lnum - 1, event.lastline, false, lines)
-  
-  -- Update UI (cursor position)
-  pcall(vim.api.nvim_win_set_cursor, 0, {math.min(event.lnum, vim.api.nvim_buf_line_count(target_bufnr)), 0})
+  local start_ms = vim.loop.now()
+  local processed = 0
+  local last_event = nil
 
-  -- Progress notification
-  if current_event_index % 5 == 0 then
-    local progress = math.floor((current_event_index / #playback_events) * 100)
-    vim.api.nvim_buf_set_name(target_bufnr, string.format("Replay Progress: %d%%", progress))
+  while is_playing and current_event_index <= #playback_events do
+    local event = playback_events[current_event_index]
+    apply_event(event)
+    last_event = event
+
+    if current_event_index % progress_update_interval == 0 then
+      local progress = math.floor((current_event_index / #playback_events) * 100)
+      if progress ~= last_progress then
+        ui.set_progress(replay_winid, progress)
+        last_progress = progress
+      end
+    end
+
+    current_event_index = current_event_index + 1
+    processed = processed + 1
+    if processed >= max_events_per_tick or (vim.loop.now() - start_ms) >= max_tick_ms then
+      break
+    end
+
+    local next_event = playback_events[current_event_index]
+    if next_event then
+      local delay = (next_event.start_time - event.end_time) / playback_speed
+      if delay >= 0.02 then
+        break
+      end
+    end
   end
 
-  current_event_index = current_event_index + 1
-  
-  if next_event then
-    local delay = (next_event.start_time - event.end_time) / playback_speed
-    if delay < 0.02 then delay = 0.02 end -- Minimum perceptible delay
-    
-    playback_timer = vim.defer_fn(function()
-      M.schedule_next()
-    end, math.floor(delay * 1000))
-  else
+  if not is_playing then return end
+
+  if current_event_index > #playback_events then
     M.stop_playback()
     M.validate_and_finish()
+    return
   end
+
+  local next_event = playback_events[current_event_index]
+  local delay = 0.02
+  if last_event and next_event then
+    delay = (next_event.start_time - last_event.end_time) / playback_speed
+    if delay < 0.02 then delay = 0.02 end
+  end
+
+  playback_timer = vim.defer_fn(function()
+    M.schedule_next()
+  end, math.floor(delay * 1000))
 end
 
 function M.validate_and_finish()
@@ -142,6 +192,15 @@ end
 
 function M.stop_playback()
   is_playing = false
+  if playback_timer then
+    pcall(vim.fn.timer_stop, playback_timer)
+    playback_timer = nil
+  end
+  if replay_winid and vim.api.nvim_win_is_valid(replay_winid) then
+    pcall(vim.api.nvim_win_close, replay_winid, true)
+  end
+  replay_winid = nil
+  target_bufnr = nil
 end
 
 function M.set_speed(speed)

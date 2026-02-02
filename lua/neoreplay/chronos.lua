@@ -11,8 +11,13 @@ local function get_all_sequences(entries, seqs)
   end
 end
 
-function M.excavate(bufnr)
+function M.excavate(bufnr, opts)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+  opts = opts or {}
+  if storage.is_active() and not opts.force then
+    vim.notify("NeoReplay Chronos: Recording is active. Stop recording or pass force=true.", vim.log.levels.WARN)
+    return nil
+  end
   local ut = vim.fn.undotree()
   if not ut.entries or #ut.entries == 0 then
     vim.notify("NeoReplay Chronos: No undo history found.", vim.log.levels.WARN)

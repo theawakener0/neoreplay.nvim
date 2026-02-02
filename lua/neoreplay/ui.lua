@@ -1,5 +1,7 @@
 local M = {}
 
+M.controls = " [SPACE] Pause/Play  [=/-] Speed Up/Down  [q] Quit "
+
 function M.create_replay_window(original_bufnr)
   local width = math.floor(vim.o.columns * 0.8)
   local height = math.floor(vim.o.lines * 0.8)
@@ -8,7 +10,11 @@ function M.create_replay_window(original_bufnr)
 
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_option(bufnr, 'bufhidden', 'wipe')
+  vim.api.nvim_buf_set_option(bufnr, 'buftype', 'nofile')
+  vim.api.nvim_buf_set_option(bufnr, 'swapfile', false)
+  vim.api.nvim_buf_set_option(bufnr, 'undolevels', -1)
   vim.api.nvim_buf_set_option(bufnr, 'readonly', true)
+  vim.api.nvim_buf_set_option(bufnr, 'modifiable', true)
 
   -- Copy filetype for theme support
   if original_bufnr and vim.api.nvim_buf_is_valid(original_bufnr) then
@@ -29,17 +35,22 @@ function M.create_replay_window(original_bufnr)
   })
 
   -- Set winbar for controls (Neovim 0.8+)
-  local controls = " [SPACE] Pause/Play  [=/-] Speed Up/Down  [q] Quit "
-  vim.api.nvim_set_option_value('winbar', controls, { scope = 'local', win = winid })
+  vim.api.nvim_set_option_value('winbar', M.controls, { scope = 'local', win = winid })
 
   -- Keybindings for controls
-  vim.keymap.set('n', 'q', function() vim.api.nvim_win_close(winid, true) end, { buffer = bufnr })
-  vim.keymap.set('n', '<Esc>', function() vim.api.nvim_win_close(winid, true) end, { buffer = bufnr })
+  vim.keymap.set('n', 'q', function() require('neoreplay.replay').stop_playback() end, { buffer = bufnr })
+  vim.keymap.set('n', '<Esc>', function() require('neoreplay.replay').stop_playback() end, { buffer = bufnr })
   vim.keymap.set('n', '<space>', function() require('neoreplay.replay').toggle_pause() end, { buffer = bufnr })
   vim.keymap.set('n', '=', function() require('neoreplay.replay').speed_up() end, { buffer = bufnr })
   vim.keymap.set('n', '-', function() require('neoreplay.replay').speed_down() end, { buffer = bufnr })
 
   return bufnr, winid
+end
+
+function M.set_progress(winid, progress)
+  if not winid or not vim.api.nvim_win_is_valid(winid) then return end
+  local text = string.format("%s | %d%%", M.controls, progress)
+  vim.api.nvim_set_option_value('winbar', text, { scope = 'local', win = winid })
 end
 
 return M

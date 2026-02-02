@@ -34,10 +34,10 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 
 ## Non-Goals
 
-- **No video encoding** (MP4/GIF). This is purely inside Neovim.
+- No native video encoding inside Neovim (exports use external tools like VHS/FFmpeg).
 - No multi-buffer session synchronization.
 - No keystroke visualization (use `screenkey.nvim` for that).
-- No external dependencies (keeps it light and fast).
+- No heavy runtime dependencies inside Neovim.
 
 ## How it Works (Why no Native GIF/Video?)
 

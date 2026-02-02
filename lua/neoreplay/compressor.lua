@@ -8,6 +8,10 @@ function M.compress(events)
 
   for _, event in ipairs(events) do
     if not current_group then
+      local after_lines = {}
+      if event.after ~= "" then
+        after_lines = vim.split(event.after, "\n", true)
+      end
       current_group = {
         buf = event.buf,
         lnum = event.lnum,
@@ -15,7 +19,8 @@ function M.compress(events)
         start_time = event.timestamp,
         end_time = event.timestamp,
         before = event.before,
-        after = event.after
+        after = event.after,
+        after_lines = after_lines
       }
     else
       local time_diff = event.timestamp - current_group.end_time
@@ -36,10 +41,19 @@ function M.compress(events)
       if same_buffer and same_range and time_diff < 2.0 and not structural_boundary then
         -- Merge into current group
         current_group.after = event.after
+        if event.after == "" then
+          current_group.after_lines = {}
+        else
+          current_group.after_lines = vim.split(event.after, "\n", true)
+        end
         current_group.end_time = event.timestamp
       else
         -- Close current group and start new one
         table.insert(compressed, current_group)
+        local after_lines = {}
+        if event.after ~= "" then
+          after_lines = vim.split(event.after, "\n", true)
+        end
         current_group = {
           buf = event.buf,
           lnum = event.lnum,
@@ -47,7 +61,8 @@ function M.compress(events)
           start_time = event.timestamp,
           end_time = event.timestamp,
           before = event.before,
-          after = event.after
+          after = event.after,
+          after_lines = after_lines
         }
       end
     end

@@ -27,11 +27,8 @@ vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {"Step 2 Alternate"})
 local ut = vim.fn.undotree()
 print("History entries found: " .. #ut.entries)
 
--- Reset storage
-storage.start()
-
 print("Starting Chronos Excavation...")
-chronos.excavate(bufnr)
+chronos.excavate(bufnr, { force = true })
 
 local events = storage.get_events()
 local final_state = storage.get_final_state(bufnr) or {}

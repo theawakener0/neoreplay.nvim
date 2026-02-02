@@ -8,7 +8,7 @@ local neoreplay = require('neoreplay')
 local function parse_args(args)
   local opts = {}
   for _, arg in ipairs(args) do
-    local k, v = arg:match("(%w+)=(%w+)")
+    local k, v = arg:match("([^=]+)=(.+)")
     if k and v then
       if tonumber(v) then
         opts[k] = tonumber(v)

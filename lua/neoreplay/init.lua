@@ -27,7 +27,8 @@ end
 
 function M.chronos(opts)
   local bufnr = vim.api.nvim_get_current_buf()
-  local data = chronos.excavate(bufnr)
+  opts = opts or {}
+  local data = chronos.excavate(bufnr, opts)
   if data then
     storage.load_chronos_session(bufnr, data)
     vim.notify("NeoReplay: History excavated. Starting replay...", vim.log.levels.INFO)
