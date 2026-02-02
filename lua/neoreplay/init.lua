@@ -122,24 +122,29 @@ function M._export_vhs_internal(opts)
   local filename = opts.filename or ("neoreplay." .. format)
   
   -- Theme detection
-  local vhs_themes = {
-    ["catppuccin-mocha"] = "Catppuccin Mocha",
-    ["catppuccin-frappe"] = "Catppuccin Frappe",
-    ["catppuccin-macchiato"] = "Catppuccin Macchiato",
-    ["catppuccin-latte"] = "Catppuccin Latte",
-    ["tokyonight"] = "Tokyo Night",
-    ["tokyonight-night"] = "Tokyo Night",
-    ["tokyonight-storm"] = "Tokyo Night",
-    ["tokyonight-day"] = "Tokyo Night",
-    ["nord"] = "Nord",
-    ["dracula"] = "Dracula",
-    ["gruvbox"] = "Gruvbox Dark",
-    ["gruvbox-dark"] = "Gruvbox Dark",
-    ["gruvbox-light"] = "Gruvbox Light",
-    ["monokai"] = "Monokai",
-  }
-  local current_colorscheme = vim.g.colors_name or ""
-  local theme = vhs_themes[current_colorscheme:lower()] or "Catppuccin Frappe"
+  local theme = vim.g.neoreplay_vhs_theme
+  if not theme then
+    local vhs_themes = {
+      ["catppuccin-mocha"] = "Catppuccin Mocha",
+      ["catppuccin-frappe"] = "Catppuccin Frappe",
+      ["catppuccin-macchiato"] = "Catppuccin Macchiato",
+      ["catppuccin-latte"] = "Catppuccin Latte",
+      ["tokyonight"] = "Tokyo Night",
+      ["nord"] = "Nord",
+      ["dracula"] = "Dracula",
+      ["gruvbox-dark"] = "Gruvbox Dark",
+      ["gruvbox-light"] = "Gruvbox Light",
+      ["monokai"] = "Monokai",
+    }
+    -- Add user mappings
+    local user_mappings = vim.g.neoreplay_vhs_mappings or {}
+    for k, v in pairs(user_mappings) do
+      vhs_themes[k:lower()] = v
+    end
+
+    local current_colorscheme = vim.g.colors_name or ""
+    theme = vhs_themes[current_colorscheme:lower()] or "Catppuccin Frappe"
+  end
 
   local json_path = vim.fn.expand('/tmp/neoreplay_vhs.json')
   local tape_path = vim.fn.expand('~/neoreplay.tape')
@@ -207,10 +212,17 @@ function M.export()
 end
 
 function M.setup(opts)
-  -- Placeholder for future config
-  if opts and opts.ignore_whitespace ~= nil then
-    vim.g.neoreplay_ignore_whitespace = opts.ignore_whitespace
-  end
+  opts = opts or {}
+  
+  -- Recording options
+  vim.g.neoreplay_ignore_whitespace = opts.ignore_whitespace or false
+  
+  -- Playback options
+  vim.g.neoreplay_playback_speed = opts.playback_speed or 20.0
+  
+  -- Export options
+  vim.g.neoreplay_vhs_theme = opts.vhs_theme -- can be nil for auto-detect
+  vim.g.neoreplay_vhs_mappings = opts.vhs_mappings or {}
 end
 
 return M

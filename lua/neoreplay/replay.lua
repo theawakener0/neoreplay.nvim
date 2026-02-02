@@ -26,7 +26,7 @@ function M.play(opts)
   playback_events = compressor.compress(events)
   current_event_index = 1
   is_playing = true
-  playback_speed = opts.speed or 20.0
+  playback_speed = opts.speed or vim.g.neoreplay_playback_speed or 20.0
   
   -- Create floating window
   local bufnr, winid = ui.create_replay_window()

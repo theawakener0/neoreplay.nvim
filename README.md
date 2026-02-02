@@ -67,7 +67,7 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-  "your-username/neoreplay.nvim",
+  "theawakener0/neoreplay.nvim",
   opts = {
     ignore_whitespace = false,
   }
@@ -81,13 +81,20 @@ NeoReplay works out of the box, but you can tune the experience:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `ignore_whitespace` | `boolean` | `false` | If true, edits that only change whitespace will not be recorded. |
+| `playback_speed` | `number` | `20.0` | Default speed for replay and exports. |
+| `vhs_theme` | `string` | `nil` | Override the VHS theme (e.g., "Nord"). |
+| `vhs_mappings` | `table` | `{}` | Key-value pairs of Neovim colorschemes to VHS themes. |
 
 ### Copy-Paste Config (Full)
 
 ```lua
 require("neoreplay").setup({
-  -- Filter out noise from purely whitespace changes
   ignore_whitespace = false,
+  playback_speed = 20.0,
+  -- Map your custom colorscheme to a VHS theme
+  vhs_mappings = {
+    ["rose-pine"] = "Rose Pine",
+  }
 })
 ```
 
