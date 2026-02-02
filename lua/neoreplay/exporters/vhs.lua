@@ -1,11 +1,18 @@
 local storage = require('neoreplay.storage')
 local utils = require('neoreplay.utils')
+local vhs_themes = require('neoreplay.vhs_themes')
 
 local M = {}
 
 local function detect_theme()
   local theme = vim.g.neoreplay_vhs_theme
-  if theme then return theme end
+  if theme then
+    local resolved = vhs_themes.resolve(theme)
+    if resolved then
+      return resolved
+    end
+    vim.notify("NeoReplay: Unknown VHS theme '" .. theme .. "'. Falling back to auto-detect.", vim.log.levels.WARN)
+  end
 
   local vhs_themes = {
     ["catppuccin-mocha"] = "Catppuccin Mocha",
@@ -26,7 +33,7 @@ local function detect_theme()
 
   local current_colorscheme = vim.g.colors_name or ""
   theme = vhs_themes[current_colorscheme:lower()] or "Catppuccin Frappe"
-  return theme
+  return vhs_themes.resolve(theme) or theme
 end
 
 function M.export(opts)
@@ -86,6 +93,10 @@ function M.export(opts)
   end
 
   return true
+end
+
+function M.list_themes()
+  return vhs_themes.all
 end
 
 function M.available()

@@ -6,6 +6,7 @@ local exporters = require('neoreplay.exporters')
 local vhs_exporter = require('neoreplay.exporters.vhs')
 local frames_exporter = require('neoreplay.exporters.frames')
 local asciinema_exporter = require('neoreplay.exporters.asciinema')
+local vhs_themes = require('neoreplay.vhs_themes')
 
 local M = {}
 
@@ -20,6 +21,22 @@ function M.capabilities()
     frames = true,
     ffmpeg = vim.fn.executable('ffmpeg') == 1,
   }
+end
+
+function M.list_vhs_themes()
+  return vhs_themes.all
+end
+
+function M.show_vhs_themes()
+  local themes = vhs_themes.all
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_option(bufnr, 'bufhidden', 'wipe')
+  vim.api.nvim_buf_set_option(bufnr, 'buftype', 'nofile')
+  vim.api.nvim_buf_set_option(bufnr, 'modifiable', true)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, themes)
+  vim.api.nvim_buf_set_option(bufnr, 'modifiable', false)
+  vim.api.nvim_set_current_buf(bufnr)
+  vim.notify("NeoReplay: VHS themes list opened.", vim.log.levels.INFO)
 end
 
 function M.start(opts)
@@ -179,6 +196,16 @@ function M.setup(opts)
   -- Export options
   vim.g.neoreplay_vhs_theme = opts.vhs_theme -- can be nil for auto-detect
   vim.g.neoreplay_vhs_mappings = opts.vhs_mappings or {}
+
+  -- Replay control keys
+  local controls = opts.controls or {}
+  vim.g.neoreplay_controls = {
+    quit = controls.quit or 'q',
+    quit_alt = controls.quit_alt or '<Esc>',
+    pause = controls.pause or '<space>',
+    faster = controls.faster or '=',
+    slower = controls.slower or '-',
+  }
 
   -- Keymaps
   if opts.keymaps then

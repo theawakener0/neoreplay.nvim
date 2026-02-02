@@ -59,3 +59,7 @@ vim.api.nvim_create_user_command('NeoReplayFlexChronos', neoreplay.flex_chronos,
 vim.api.nvim_create_user_command('NeoReplayRecordFFmpeg', function(opts)
   neoreplay.record_ffmpeg(opts.args ~= "" and opts.args or nil)
 end, { nargs = '?' })
+
+vim.api.nvim_create_user_command('NeoReplayVHSThemes', function()
+  neoreplay.show_vhs_themes()
+end, {})

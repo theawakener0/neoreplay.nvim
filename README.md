@@ -101,6 +101,7 @@ NeoReplay works out of the box, but you can tune the experience:
 | `vhs_theme` | `string` | `nil` | Override the VHS theme (e.g., "Nord"). |
 | `vhs_mappings` | `table` | `{}` | Key-value pairs of Neovim colorschemes to VHS themes. |
 | `keymaps` | `table` | `{}` | Optional keymaps for commands (`start`, `stop`, `play`, `chronos`). |
+| `controls` | `table` | `{}` | Override replay control keys (`quit`, `quit_alt`, `pause`, `faster`, `slower`). |
 
 ### Copy-Paste Config (Full)
 
@@ -126,6 +127,13 @@ require("neoreplay").setup({
     export_asciinema = "<leader>ra",
     record_ffmpeg = "<leader>rr",
   }
+  ,controls = {
+    quit = "q",
+    quit_alt = "<Esc>",
+    pause = "<space>",
+    faster = "=",
+    slower = "-",
+  }
 })
 ```
 
@@ -136,6 +144,10 @@ When the replay window is open, use these keys:
 - `=`: Speed up
 - `-`: Slow down
 - `q` / `Esc`: Close replay
+
+## VHS Themes
+
+All available VHS themes are bundled. Use `:NeoReplayVHSThemes` to open the full list in a scratch buffer, or set `vhs_theme` directly to any theme name.
 
 ## License
 

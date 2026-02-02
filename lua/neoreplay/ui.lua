@@ -15,11 +15,18 @@ local function setup_replay_buffer(bufnr, original_bufnr)
     vim.api.nvim_buf_set_option(bufnr, 'filetype', ft)
   end
 
-  vim.keymap.set('n', 'q', function() require('neoreplay.replay').stop_playback() end, { buffer = bufnr })
-  vim.keymap.set('n', '<Esc>', function() require('neoreplay.replay').stop_playback() end, { buffer = bufnr })
-  vim.keymap.set('n', '<space>', function() require('neoreplay.replay').toggle_pause() end, { buffer = bufnr })
-  vim.keymap.set('n', '=', function() require('neoreplay.replay').speed_up() end, { buffer = bufnr })
-  vim.keymap.set('n', '-', function() require('neoreplay.replay').speed_down() end, { buffer = bufnr })
+  local controls = vim.g.neoreplay_controls or {}
+  local quit = controls.quit or 'q'
+  local quit_alt = controls.quit_alt or '<Esc>'
+  local pause = controls.pause or '<space>'
+  local faster = controls.faster or '='
+  local slower = controls.slower or '-'
+
+  vim.keymap.set('n', quit, function() require('neoreplay.replay').stop_playback() end, { buffer = bufnr })
+  vim.keymap.set('n', quit_alt, function() require('neoreplay.replay').stop_playback() end, { buffer = bufnr })
+  vim.keymap.set('n', pause, function() require('neoreplay.replay').toggle_pause() end, { buffer = bufnr })
+  vim.keymap.set('n', faster, function() require('neoreplay.replay').speed_up() end, { buffer = bufnr })
+  vim.keymap.set('n', slower, function() require('neoreplay.replay').speed_down() end, { buffer = bufnr })
 end
 
 function M.create_replay_window(original_bufnr)
