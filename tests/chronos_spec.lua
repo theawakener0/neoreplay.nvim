@@ -1,0 +1,53 @@
+local chronos = require('neoreplay.chronos')
+local storage = require('neoreplay.storage')
+
+-- Force undolevels and write to ensure history is captured
+vim.o.undolevels = 1000
+vim.o.undofile = true
+
+-- Setup a buffer with history
+local bufnr = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(bufnr)
+
+-- Initial state
+vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {"Base line"})
+vim.cmd("write! /tmp/chronos_test.txt")
+
+-- Sequence of edits to generate undotree
+vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {"Step 1"})
+vim.wait(10)
+vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {"Step 2"})
+vim.wait(10)
+
+-- Go back and create a fork
+vim.cmd("undo 1")
+vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {"Step 2 Alternate"})
+
+-- Final check of history
+local ut = vim.fn.undotree()
+print("History entries found: " .. #ut.entries)
+
+-- Reset storage
+storage.start()
+
+print("Starting Chronos Excavation...")
+chronos.excavate(bufnr)
+
+local events = storage.get_events()
+local final_state = storage.get_final_state(bufnr) or {}
+
+local function assert_eq(a, b, msg)
+  if a ~= b then error(string.format("%s: %s != %s", msg or "Assertion failed", tostring(a), tostring(b))) end
+end
+
+if #events == 0 then
+  print("Error: No events captured by Chronos.")
+  os.exit(1)
+end
+
+print("Captured " .. #events .. " events")
+print("Final state: " .. (final_state[1] or "N/A"))
+
+assert_eq(final_state[1], "Step 2 Alternate", "Final state mismatch")
+
+print("Chronos Excavation tests passed!")

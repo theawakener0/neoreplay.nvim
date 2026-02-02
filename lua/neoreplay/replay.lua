@@ -29,7 +29,8 @@ function M.play(opts)
   playback_speed = opts.speed or vim.g.neoreplay_playback_speed or 20.0
   
   -- Create floating window
-  local bufnr, winid = ui.create_replay_window()
+  local original_bufnr = events[1].buf
+  local bufnr, winid = ui.create_replay_window(original_bufnr)
   target_bufnr = bufnr
 
   if opts.title then

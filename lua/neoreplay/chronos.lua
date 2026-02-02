@@ -59,6 +59,13 @@ function M.excavate(bufnr)
     -- 4. Excavate
     local cache = {}
     
+    -- Capability: deep copy cache without unpack limit
+    local function copy_cache(tbl)
+      local copy = {}
+      for i, v in ipairs(tbl) do copy[i] = v end
+      return copy
+    end
+
     -- Go to start (seq 0)
     vim.api.nvim_buf_call(scratch, function()
       vim.cmd('noautocmd undo 0')
@@ -66,7 +73,7 @@ function M.excavate(bufnr)
     end)
 
     -- Capture initial state for storage
-    local initial_state = { unpack(cache) }
+    local initial_state = copy_cache(cache)
 
     -- Attach listener to scratch buffer
     -- We'll collect raw changes
@@ -115,12 +122,30 @@ function M.excavate(bufnr)
           vim.cmd('noautocmd undo ' .. seq)
         end
       end
+      -- Ensure we capture the absolute final state after all transitions
+      cache = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)
     end)
 
+    -- Persist into storage for replay/consumers
+    if not storage.is_active() then
+      storage.start()
+    end
+    local initial_copy = {}
+    for i, v in ipairs(initial_state) do initial_copy[i] = v end
+    storage.set_initial_state(bufnr, initial_copy)
+
+    for _, ev in ipairs(raw_events) do
+      storage.add_event(ev)
+    end
+
+    local final_copy = {}
+    for i, v in ipairs(cache) do final_copy[i] = v end
+    storage.set_final_state(bufnr, final_copy)
+
     events = {
-      initial_state = initial_state,
+      initial_state = initial_copy,
       raw_events = raw_events,
-      final_state = cache
+      final_state = final_copy
     }
   end)
 

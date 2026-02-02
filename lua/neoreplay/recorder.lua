@@ -68,10 +68,17 @@ function M.start()
   if attached_buffers[bufnr] then return end
 
   local initial_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  -- Create copies to prevent reference sharing issues
+  local initial_copy = {}
+  for i, line in ipairs(initial_lines) do initial_copy[i] = line end
+  local cache_copy = {}
+  for i, line in ipairs(initial_lines) do cache_copy[i] = line end
   
-  storage.start()
-  storage.set_initial_state(bufnr, initial_lines)
-  buffer_cache[bufnr] = initial_lines
+  if not storage.is_active() then
+    storage.start()
+  end
+  storage.set_initial_state(bufnr, initial_copy)
+  buffer_cache[bufnr] = cache_copy
 
   vim.api.nvim_buf_attach(bufnr, false, {
     on_lines = on_lines,
