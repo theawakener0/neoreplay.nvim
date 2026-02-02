@@ -7,7 +7,7 @@ Stop re-reading finished code. Replay how it was built, one semantic step at a t
 ## 10-Second Usage
 
 1. Start recording a session:
-   `:NeoReplayStart`
+  `:NeoReplayStart` (or `:NeoReplayStart all_buffers=true`)
 2. Write some code, refactor, edit.
 3. Stop recording:
    `:NeoReplayStop`
@@ -29,15 +29,17 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 - **Semantic Recording**: Captures buffer diffs via `nvim_buf_attach`, ignoring cursor movements and noise.
 - **Intelligent Compression**: Merges identical line-range edits happening in short bursts into single semantic steps.
 - **Chronos (Undo Replay)**: Forgot to record? Excavate your buffer's undo tree to reconstruct history.
+- **Scene Tracks**: Multi-buffer capture and replay in a synchronized scene.
+- **Semantic Overlays**: During replay, labels like *insert / delete / replace* with cadence indicators.
 - **Fidelity Guarantee**: The replay engine ensures the final state of the replay buffer perfectly matches the original session.
 - **Minimal UI**: Simple floating window with speed controls.
 
-## Non-Goals
+## Core Principles
 
-- No native video encoding inside Neovim (exports use external tools like VHS/FFmpeg).
-- No multi-buffer session synchronization.
-- No keystroke visualization (use `screenkey.nvim` for that).
-- No heavy runtime dependencies inside Neovim.
+- **No heavy dependencies inside Neovim** → Optional capability packs (VHS, FFmpeg, asciinema).
+- **No native video encoding** → Export pipelines (VHS/FFmpeg/frames/asciinema).
+- **No keystroke visualization** → Semantic overlays and cadence instead of raw keys.
+- **No multi-buffer sync** → Scene tracks with focus buffer support.
 
 ## How it Works (Why no Native GIF/Video?)
 
@@ -47,6 +49,17 @@ One minor detail: Neovim is a text editor, not a video encoder. To keep the plug
 2. **Export**: `:NeoReplayExportGIF` or `:NeoReplayExportMP4` generates a `.tape` file for [VHS](https://github.com/charmbracelet/vhs).
 3. **Generation**: VHS opens a headless terminal, runs the replay, and saves it as a high-quality GIF or MP4.
 
+## Export Output Locations (Defaults)
+
+- **Base export directory**: `~/.neoreplay`
+- **VHS**: `~/.neoreplay/neoreplay.tape` (tape) + output file in current working directory unless `filename=...`
+- **Frames**: `~/.neoreplay/frames/`
+- **Asciinema**: `~/.neoreplay/neoreplay_asciinema.sh` (script) and `~/.neoreplay/neoreplay.cast`
+- **FFmpeg**: `~/.neoreplay/neoreplay_capture.mp4`
+- **Raw session export**: `~/.neoreplay/neoreplay_session.json`
+
+All exporters accept overrides (e.g. `filename=...`, `dir=...`, `json_path=...`, `tape_path=...`).
+
 ### Video/GIF Export Commands
 
 | Command | Usage | Description |
@@ -54,6 +67,8 @@ One minor detail: Neovim is a text editor, not a video encoder. To keep the plug
 | `:NeoReplayExportGIF` | `:NeoReplayExportGIF speed=20` | Generate a high-quality GIF tape via VHS. |
 | `:NeoReplayExportMP4` | `:NeoReplayExportMP4 quality=90` | Generate an MP4 tape via VHS. |
 | `:NeoReplayRecordFFmpeg`| `:NeoReplayRecordFFmpeg` | **Wild Mode**: Direct screen capture via FFmpeg. |
+| `:NeoReplayExportFrames` | `:NeoReplayExportFrames dir=~/frames` | Export per-event JSON frames for external renderers. |
+| `:NeoReplayExportAsciinema` | `:NeoReplayExportAsciinema speed=20` | Generate an asciinema capture script. |
 
 *Configurable parameters for VHS:* `speed` (multiplier), `quality` (1-100), `filename`.
 
@@ -81,6 +96,7 @@ NeoReplay works out of the box, but you can tune the experience:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `ignore_whitespace` | `boolean` | `false` | If true, edits that only change whitespace will not be recorded. |
+| `record_all_buffers` | `boolean` | `false` | If true, record all loaded file buffers (scene tracks). |
 | `playback_speed` | `number` | `20.0` | Default speed for replay and exports. |
 | `vhs_theme` | `string` | `nil` | Override the VHS theme (e.g., "Nord"). |
 | `vhs_mappings` | `table` | `{}` | Key-value pairs of Neovim colorschemes to VHS themes. |
@@ -91,6 +107,7 @@ NeoReplay works out of the box, but you can tune the experience:
 ```lua
 require("neoreplay").setup({
   ignore_whitespace = false,
+  record_all_buffers = false,
   playback_speed = 20.0,
   -- Map your custom colorscheme to a VHS theme
   vhs_mappings = {
@@ -105,6 +122,8 @@ require("neoreplay").setup({
     clear = "<leader>rx",
     export_gif = "<leader>rg",
     export_mp4 = "<leader>rm",
+    export_frames = "<leader>rF",
+    export_asciinema = "<leader>ra",
     record_ffmpeg = "<leader>rr",
   }
 })
@@ -117,14 +136,6 @@ When the replay window is open, use these keys:
 - `=`: Speed up
 - `-`: Slow down
 - `q` / `Esc`: Close replay
-
-## Testing
-
-Run tests via headless Neovim:
-
-```bash
-nvim --headless -c "set runtimepath+=." -c "luafile tests/compression_spec.lua" -c "qall"
-```
 
 ## License
 

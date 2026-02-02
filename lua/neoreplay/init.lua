@@ -2,11 +2,28 @@ local recorder = require('neoreplay.recorder')
 local replay = require('neoreplay.replay')
 local storage = require('neoreplay.storage')
 local chronos = require('neoreplay.chronos')
+local exporters = require('neoreplay.exporters')
+local vhs_exporter = require('neoreplay.exporters.vhs')
+local frames_exporter = require('neoreplay.exporters.frames')
+local asciinema_exporter = require('neoreplay.exporters.asciinema')
 
 local M = {}
 
-function M.start()
-  recorder.start()
+exporters.register('vhs', vhs_exporter)
+exporters.register('frames', frames_exporter)
+exporters.register('asciinema', asciinema_exporter)
+
+function M.capabilities()
+  return {
+    vhs = vhs_exporter.available and vhs_exporter.available() or false,
+    asciinema = asciinema_exporter.available and asciinema_exporter.available() or false,
+    frames = true,
+    ffmpeg = vim.fn.executable('ffmpeg') == 1,
+  }
+end
+
+function M.start(opts)
+  recorder.start(opts)
   vim.notify("NeoReplay: Started recording.", vim.log.levels.INFO)
 end
 
@@ -59,13 +76,13 @@ end
 function M.export_gif(opts)
   opts = opts or {}
   opts.format = "gif"
-  M._export_vhs_internal(opts)
+  exporters.export('vhs', opts)
 end
 
 function M.export_mp4(opts)
   opts = opts or {}
   opts.format = "mp4"
-  M._export_vhs_internal(opts)
+  exporters.export('vhs', opts)
 end
 
 function M.record_ffmpeg(filename)
@@ -91,7 +108,7 @@ function M.record_ffmpeg(filename)
     return
   end
 
-  filename = filename or vim.fn.expand('~/neoreplay_capture.mp4')
+  filename = filename or vim.fn.expand('~/.neoreplay/neoreplay_capture.mp4')
   
   -- FFmpeg command for internal screen grab (X11)
   local ffmpeg_cmd = string.format(
@@ -116,83 +133,12 @@ function M.record_ffmpeg(filename)
   })
 end
 
-function M._export_vhs_internal(opts)
-  local session = storage.get_session()
-  if not session or #session.events == 0 then
-    vim.notify("NeoReplay: No session recorded to export.", vim.log.levels.WARN)
-    return
-  end
+function M.export_frames(opts)
+  exporters.export('frames', opts or {})
+end
 
-  local format = opts.format or "gif"
-  local speed = opts.speed or 20.0
-  local quality = opts.quality or 100
-  local filename = opts.filename or ("neoreplay." .. format)
-  
-  -- Theme detection
-  local theme = vim.g.neoreplay_vhs_theme
-  if not theme then
-    local vhs_themes = {
-      ["catppuccin-mocha"] = "Catppuccin Mocha",
-      ["catppuccin-frappe"] = "Catppuccin Frappe",
-      ["catppuccin-macchiato"] = "Catppuccin Macchiato",
-      ["catppuccin-latte"] = "Catppuccin Latte",
-      ["tokyonight"] = "Tokyo Night",
-      ["nord"] = "Nord",
-      ["dracula"] = "Dracula",
-      ["gruvbox-dark"] = "Gruvbox Dark",
-      ["gruvbox-light"] = "Gruvbox Light",
-      ["monokai"] = "Monokai",
-    }
-    -- Add user mappings
-    local user_mappings = vim.g.neoreplay_vhs_mappings or {}
-    for k, v in pairs(user_mappings) do
-      vhs_themes[k:lower()] = v
-    end
-
-    local current_colorscheme = vim.g.colors_name or ""
-    theme = vhs_themes[current_colorscheme:lower()] or "Catppuccin Frappe"
-  end
-
-  local json_path = vim.fn.expand('/tmp/neoreplay_vhs.json')
-  local tape_path = vim.fn.expand('~/neoreplay.tape')
-  
-  -- 1. Save current session to tmp
-  local data = vim.fn.json_encode(session)
-  local f = io.open(json_path, "w")
-  if f then f:write(data) f:close() end
-
-  -- Calculate duration
-  local duration = 5 -- fallback
-  if #session.events > 1 then
-    duration = (session.events[#session.events].timestamp - session.events[1].timestamp) / speed
-  end
-  duration = math.ceil(duration) + 2 -- Add buffer
-
-  -- 2. Generate VHS Tape
-  local tape = {
-    'Output ' .. filename,
-    'Set FontSize 16',
-    'Set Width 1200',
-    'Set Height 800',
-    'Set Padding 20',
-    'Set Theme "' .. theme .. '"',
-    format == "mp4" and 'Set Quality ' .. quality or '',
-    'Hide',
-    'Type "nvim -u NONE -c \'set runtimepath+=.\' -c \'lua require(\"neoreplay\").load_session(\"' .. json_path .. '\")\' -c \'lua require(\"neoreplay\").play({ speed = ' .. speed .. ' })\'\"',
-    'Enter',
-    'Sleep 1s',
-    'Show',
-    'Sleep ' .. duration .. 's',
-    'Type "q"',
-    'Sleep 500ms',
-  }
-
-  local tf = io.open(tape_path, "w")
-  if tf then
-    tf:write(table.concat(tape, "\n"))
-    tf:close()
-    vim.notify(string.format("NeoReplay: Tape for %s generated at %s. (Speed: %.1fx). Run `vhs < %s`", format:upper(), tape_path, speed, tape_path), vim.log.levels.INFO)
-  end
+function M.export_asciinema(opts)
+  exporters.export('asciinema', opts or {})
 end
 
 function M.export_vhs()
@@ -207,7 +153,9 @@ end
 function M.export()
   local session = storage.get_session()
   local data = vim.fn.json_encode(session)
-  local path = vim.fn.expand('~/neoreplay_session.json')
+  local base_dir = vim.fn.expand('~/.neoreplay')
+  vim.fn.mkdir(base_dir, 'p')
+  local path = base_dir .. '/neoreplay_session.json'
   local f = io.open(path, "w")
   if f then
     f:write(data)
@@ -223,6 +171,7 @@ function M.setup(opts)
   
   -- Recording options
   vim.g.neoreplay_ignore_whitespace = opts.ignore_whitespace or false
+  vim.g.neoreplay_record_all_buffers = opts.record_all_buffers or false
   
   -- Playback options
   vim.g.neoreplay_playback_speed = opts.playback_speed or 20.0
@@ -242,6 +191,8 @@ function M.setup(opts)
     if maps.clear then vim.keymap.set('n', maps.clear, M.clear, { desc = "NeoReplay: Clear session" }) end
     if maps.export_gif then vim.keymap.set('n', maps.export_gif, M.export_gif, { desc = "NeoReplay: Export GIF" }) end
     if maps.export_mp4 then vim.keymap.set('n', maps.export_mp4, M.export_mp4, { desc = "NeoReplay: Export MP4" }) end
+    if maps.export_frames then vim.keymap.set('n', maps.export_frames, M.export_frames, { desc = "NeoReplay: Export Frames" }) end
+    if maps.export_asciinema then vim.keymap.set('n', maps.export_asciinema, M.export_asciinema, { desc = "NeoReplay: Export Asciinema" }) end
     if maps.record_ffmpeg then vim.keymap.set('n', maps.record_ffmpeg, M.record_ffmpeg, { desc = "NeoReplay: Record with FFmpeg" }) end
   end
 end

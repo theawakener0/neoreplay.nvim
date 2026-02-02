@@ -1,4 +1,5 @@
 local storage = require('neoreplay.storage')
+local utils = require('neoreplay.utils')
 local M = {}
 
 local buffer_cache = {}
@@ -52,19 +53,25 @@ local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline
     end
   end
 
+  local meta = utils.get_buffer_meta(bufnr)
+  storage.set_buffer_meta(bufnr, meta)
   storage.add_event({
     timestamp = get_timestamp(),
     buf = bufnr,
+    bufname = meta.name,
+    filetype = meta.filetype,
     before = before_text,
     after = after_text,
     lnum = firstline + 1,
     lastline = lastline,
-    new_lastline = new_lastline
+    new_lastline = new_lastline,
+    edit_type = utils.edit_type(before_text, after_text),
+    lines_changed = math.abs(new_lastline - lastline),
+    kind = 'edit'
   })
 end
 
-function M.start()
-  local bufnr = vim.api.nvim_get_current_buf()
+local function attach_buffer(bufnr)
   if attached_buffers[bufnr] then return end
 
   local initial_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
@@ -73,26 +80,54 @@ function M.start()
   for i, line in ipairs(initial_lines) do initial_copy[i] = line end
   local cache_copy = {}
   for i, line in ipairs(initial_lines) do cache_copy[i] = line end
-  
-  if not storage.is_active() then
-    storage.start()
-  end
+
   storage.set_initial_state(bufnr, initial_copy)
+  storage.set_buffer_meta(bufnr, utils.get_buffer_meta(bufnr))
   buffer_cache[bufnr] = cache_copy
 
   vim.api.nvim_buf_attach(bufnr, false, {
     on_lines = on_lines,
-    on_detach = function() 
-      buffer_cache[bufnr] = nil 
+    on_detach = function()
+      buffer_cache[bufnr] = nil
       attached_buffers[bufnr] = nil
     end
   })
   attached_buffers[bufnr] = true
 end
 
+function M.start(opts)
+  opts = opts or {}
+  if not storage.is_active() then
+    storage.start()
+  end
+
+  local targets = {}
+  if opts.bufnrs and #opts.bufnrs > 0 then
+    targets = opts.bufnrs
+  elseif opts.all_buffers or vim.g.neoreplay_record_all_buffers then
+    targets = utils.list_recordable_buffers()
+  else
+    targets = { vim.api.nvim_get_current_buf() }
+  end
+
+  for _, bufnr in ipairs(targets) do
+    if utils.is_real_buffer(bufnr) then
+      attach_buffer(bufnr)
+    end
+  end
+
+  storage.set_metadata({
+    recorded_buffers = targets,
+    started_at = vim.loop.hrtime() / 1e9,
+  })
+end
+
 function M.stop()
-  local bufnr = vim.api.nvim_get_current_buf()
-  storage.set_final_state(bufnr, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+  for bufnr, _ in pairs(attached_buffers) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      storage.set_final_state(bufnr, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
+    end
+  end
   storage.stop()
 end
 

@@ -1,4 +1,5 @@
 local storage = require('neoreplay.storage')
+local utils = require('neoreplay.utils')
 
 local M = {}
 
@@ -8,6 +9,16 @@ local function get_all_sequences(entries, seqs)
     if entry.seq then seqs[entry.seq] = true end
     if entry.alt then get_all_sequences(entry.alt, seqs) end
     -- Note: undotree structure depends on nvim version but alt is standard
+  end
+end
+
+local function collect_branch_points(entries, points)
+  if not entries then return end
+  for _, entry in ipairs(entries) do
+    if entry.alt and entry.seq then
+      points[entry.seq] = true
+      collect_branch_points(entry.alt, points)
+    end
   end
 end
 
@@ -60,6 +71,9 @@ function M.excavate(bufnr, opts)
     local sorted_seqs = {}
     for seq in pairs(seq_map) do table.insert(sorted_seqs, seq) end
     table.sort(sorted_seqs)
+
+    local branch_points = {}
+    collect_branch_points(ut.entries, branch_points)
 
     -- 4. Excavate
     local cache = {}
@@ -124,6 +138,18 @@ function M.excavate(bufnr, opts)
     vim.api.nvim_buf_call(scratch, function()
       for _, seq in ipairs(sorted_seqs) do
         if seq > 0 then
+          if branch_points[seq] then
+            table.insert(raw_events, {
+              timestamp = current_timestamp,
+              buf = bufnr,
+              kind = 'segment',
+              label = 'Branch point @' .. tostring(seq),
+              lnum = 1,
+              lastline = 0,
+              new_lastline = 0,
+            })
+            current_timestamp = current_timestamp + 0.05
+          end
           vim.cmd('noautocmd undo ' .. seq)
         end
       end
@@ -139,7 +165,17 @@ function M.excavate(bufnr, opts)
     for i, v in ipairs(initial_state) do initial_copy[i] = v end
     storage.set_initial_state(bufnr, initial_copy)
 
+    local buffer_meta = utils.get_buffer_meta(bufnr)
+    storage.set_buffer_meta(bufnr, buffer_meta)
+
     for _, ev in ipairs(raw_events) do
+      if ev.kind ~= 'segment' then
+        ev.bufname = buffer_meta.name
+        ev.filetype = buffer_meta.filetype
+        ev.edit_type = utils.edit_type(ev.before or '', ev.after or '')
+        ev.lines_changed = math.abs((ev.new_lastline or 0) - (ev.lastline or 0))
+        ev.kind = ev.kind or 'edit'
+      end
       storage.add_event(ev)
     end
 
@@ -147,10 +183,14 @@ function M.excavate(bufnr, opts)
     for i, v in ipairs(cache) do final_copy[i] = v end
     storage.set_final_state(bufnr, final_copy)
 
+    local index = { by_buf = { [bufnr] = #raw_events }, total_events = #raw_events }
     events = {
       initial_state = initial_copy,
       raw_events = raw_events,
       final_state = final_copy
+      ,buffer_meta = buffer_meta
+      ,index = index
+      ,metadata = { excavated = true }
     }
   end)
 

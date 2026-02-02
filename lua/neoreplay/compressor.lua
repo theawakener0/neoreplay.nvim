@@ -7,6 +7,20 @@ function M.compress(events)
   local current_group = nil
 
   for _, event in ipairs(events) do
+    if event.kind == 'segment' then
+      if current_group then
+        table.insert(compressed, current_group)
+        current_group = nil
+      end
+      table.insert(compressed, {
+        kind = 'segment',
+        label = event.label or 'Segment',
+        timestamp = event.timestamp,
+        buf = event.buf,
+      })
+      goto continue
+    end
+
     if not current_group then
       local after_lines = {}
       if event.after ~= "" then
@@ -20,7 +34,12 @@ function M.compress(events)
         end_time = event.timestamp,
         before = event.before,
         after = event.after,
-        after_lines = after_lines
+        after_lines = after_lines,
+        bufname = event.bufname,
+        filetype = event.filetype,
+        edit_type = event.edit_type,
+        lines_changed = event.lines_changed,
+        kind = event.kind or 'edit'
       }
     else
       local time_diff = event.timestamp - current_group.end_time
@@ -62,10 +81,17 @@ function M.compress(events)
           end_time = event.timestamp,
           before = event.before,
           after = event.after,
-          after_lines = after_lines
+          after_lines = after_lines,
+          bufname = event.bufname,
+          filetype = event.filetype,
+          edit_type = event.edit_type,
+          lines_changed = event.lines_changed,
+          kind = event.kind or 'edit'
         }
       end
     end
+
+    ::continue::
   end
 
   if current_group then

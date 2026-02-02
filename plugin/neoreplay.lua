@@ -10,7 +10,11 @@ local function parse_args(args)
   for _, arg in ipairs(args) do
     local k, v = arg:match("([^=]+)=(.+)")
     if k and v then
-      if tonumber(v) then
+      if v == "true" then
+        opts[k] = true
+      elseif v == "false" then
+        opts[k] = false
+      elseif tonumber(v) then
         opts[k] = tonumber(v)
       else
         opts[k] = v
@@ -20,7 +24,9 @@ local function parse_args(args)
   return opts
 end
 
-vim.api.nvim_create_user_command('NeoReplayStart', neoreplay.start, {})
+vim.api.nvim_create_user_command('NeoReplayStart', function(opts)
+  neoreplay.start(parse_args(opts.fargs))
+end, { nargs = '*' })
 vim.api.nvim_create_user_command('NeoReplayStop', neoreplay.stop, {})
 vim.api.nvim_create_user_command('NeoReplayPlay', neoreplay.play, {})
 vim.api.nvim_create_user_command('NeoReplayClear', neoreplay.clear, {})
@@ -34,6 +40,14 @@ end, { nargs = '*' })
 
 vim.api.nvim_create_user_command('NeoReplayExportMP4', function(opts)
   neoreplay.export_mp4(parse_args(opts.fargs))
+end, { nargs = '*' })
+
+vim.api.nvim_create_user_command('NeoReplayExportFrames', function(opts)
+  neoreplay.export_frames(parse_args(opts.fargs))
+end, { nargs = '*' })
+
+vim.api.nvim_create_user_command('NeoReplayExportAsciinema', function(opts)
+  neoreplay.export_asciinema(parse_args(opts.fargs))
 end, { nargs = '*' })
 
 vim.api.nvim_create_user_command('NeoReplayChronos', function(opts)
