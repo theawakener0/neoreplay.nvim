@@ -2,13 +2,17 @@ local storage = require('neoreplay.storage')
 local M = {}
 
 local buffer_cache = {}
+local attached_buffers = {}
 
 local function get_timestamp()
   return vim.loop.hrtime() / 1e9
 end
 
 local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline, byte_count)
-  if not storage.is_active() then return end
+  if not storage.is_active() then 
+    attached_buffers[bufnr] = nil
+    return true -- Detach the handler
+  end
   
   local cache = buffer_cache[bufnr]
   if not cache then return end
@@ -60,6 +64,8 @@ end
 
 function M.start()
   local bufnr = vim.api.nvim_get_current_buf()
+  if attached_buffers[bufnr] then return end
+
   local initial_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   
   storage.start()
@@ -68,16 +74,18 @@ function M.start()
 
   vim.api.nvim_buf_attach(bufnr, false, {
     on_lines = on_lines,
-    on_detach = function() buffer_cache[bufnr] = nil end
+    on_detach = function() 
+      buffer_cache[bufnr] = nil 
+      attached_buffers[bufnr] = nil
+    end
   })
+  attached_buffers[bufnr] = true
 end
 
 function M.stop()
   local bufnr = vim.api.nvim_get_current_buf()
   storage.set_final_state(bufnr, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
   storage.stop()
-  -- nvim_buf_attach doesn't have an explicit 'detach' function other than returning true from callback
-  -- But since we check storage.is_active(), it will effectively stop recording.
 end
 
 return M
