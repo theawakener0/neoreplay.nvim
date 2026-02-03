@@ -87,9 +87,6 @@ Using [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```lua
 {
   "theawakener0/neoreplay.nvim",
-  opts = {
-    ignore_whitespace = false,
-  }
 }
 ```
 
