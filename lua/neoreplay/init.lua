@@ -238,6 +238,9 @@ function M.setup(opts)
   -- Export options
   vim.g.neoreplay_vhs_theme = opts.vhs_theme
   vim.g.neoreplay_vhs_mappings = opts.vhs_mappings or {}
+  local export_opts = opts.export or {}
+  vim.g.neoreplay_export_use_user_config = export_opts.use_user_config or false
+  vim.g.neoreplay_export_nvim_init = export_opts.nvim_init
 
   -- Replay control keys
   local controls = opts.controls or {}

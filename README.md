@@ -83,7 +83,7 @@ All exporters accept overrides (e.g. `filename=...`, `dir=...`, `json_path=...`,
 > 1) `~/.neoreplay/neoreplay_asciinema.sh`
 > 2) `asciinema play ~/.neoreplay/neoreplay.cast`
 >
-> The script uses `set runtimepath+=.` which assumes you run it from the NeoReplay plugin directory. If you run it elsewhere, either `cd` into your plugin folder first or edit the script to append your actual NeoReplay install path to `runtimepath`.
+> The generated script now uses the absolute NeoReplay runtimepath, so you can run it from any directory.
 
 This gives you perfectly crisp, pixel-perfect clips without bloating your Neovim installation.
 
@@ -108,8 +108,16 @@ NeoReplay works out of the box, but you can tune the experience:
 | `playback_speed` | `number` | `20.0` | Default speed for replay and exports. |
 | `vhs_theme` | `string` | `nil` | Override the VHS theme (e.g., "Nord"). |
 | `vhs_mappings` | `table` | `{}` | Key-value pairs of Neovim colorschemes to VHS themes. |
+| `export` | `table` | `{}` | Export-time options (see below). |
 | `keymaps` | `table` | `{}` | Optional keymaps for commands (`start`, `stop`, `play`, `chronos`). |
 | `controls` | `table` | `{}` | Override replay control keys (`quit`, `quit_alt`, `pause`, `faster`, `slower`). |
+
+### Export Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `export.use_user_config` | `boolean` | `false` | Load your user config during VHS/asciinema export (for Treesitter, plugins, etc). |
+| `export.nvim_init` | `string` | `nil` | Path to an explicit Neovim init file for export sessions. Overrides `use_user_config`. |
 
 ### Copy-Paste Config (Full)
 
@@ -121,6 +129,10 @@ require("neoreplay").setup({
   -- Map your custom colorscheme to a VHS theme
   vhs_mappings = {
     ["rose-pine"] = "Rose Pine",
+  },
+  export = {
+    use_user_config = true,
+    -- nvim_init = "/absolute/path/to/init.lua",
   },
   keymaps = {
     start = "<leader>rs",

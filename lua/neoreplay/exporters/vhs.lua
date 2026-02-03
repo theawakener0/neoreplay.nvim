@@ -13,6 +13,24 @@ local function plugin_root()
   return vim.fn.fnamemodify(source, ":h:h:h:h")
 end
 
+local function resolve_init_path(opts)
+  local init = opts.nvim_init or vim.g.neoreplay_export_nvim_init
+  local use_user = opts.use_user_config
+  if use_user == nil then
+    use_user = vim.g.neoreplay_export_use_user_config
+  end
+  if not init and use_user then
+    init = vim.fn.expand("$MYVIMRC")
+    if not init or init == "" then
+      local candidate = vim.fn.stdpath("config") .. "/init.lua"
+      if vim.loop.fs_stat(candidate) then
+        init = candidate
+      end
+    end
+  end
+  return init
+end
+
 local function detect_theme()
   local theme = vim.g.neoreplay_vhs_theme
   if theme then
@@ -64,6 +82,8 @@ function M.export(opts)
   local tape_path = opts.tape_path or (base_dir .. '/neoreplay.tape')
   local root = plugin_root()
   local rtp = vim.fn.fnameescape(root)
+  local init_path = resolve_init_path(opts)
+  local nvim_cmd = init_path and ("nvim -u " .. vim.fn.shellescape(init_path)) or "nvim -u NONE"
 
   local data = vim.fn.json_encode(session)
   local f = io.open(json_path, "w")
@@ -87,7 +107,7 @@ function M.export(opts)
     'Set Theme "' .. theme .. '"',
     format == "mp4" and 'Set Quality ' .. quality or '',
     'Hide',
-    "Type `nvim -u NONE -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"" .. json_path .. "\")' -c 'lua require(\"neoreplay\").play({ speed = " .. speed .. " })'`",
+    "Type `" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"" .. json_path .. "\")' -c 'lua require(\"neoreplay\").play({ speed = " .. speed .. " })'`",
     'Enter',
     'Sleep 1s',
     'Show',
