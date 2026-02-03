@@ -36,6 +36,7 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 - **Semantic Overlays**: During replay, labels like *insert / delete / replace* with cadence indicators.
 - **Fidelity Guarantee**: The replay engine ensures the final state of the replay buffer perfectly matches the original session.
 - **Minimal UI**: Simple floating window with speed controls.
+- **Interactive Progress Bar**: Scrub, seek, and preview edits with mouse and keyboard while replaying.
 
 ## Core Principles
 
@@ -147,6 +148,29 @@ When the replay window is open, use these keys:
 - `=`: Speed up
 - `-`: Slow down
 - `q` / `Esc`: Close replay
+
+### Progress Bar Controls
+
+When the progress bar is visible:
+
+- **Mouse**: Click to seek, drag to scrub, hover to preview.
+- **Keyboard**:
+  - `h` / `l`: Seek -5s / +5s
+  - `H` / `L`: Seek -30s / +30s
+  - `0`: Seek to start
+  - `G` / `$`: Seek to end
+
+### Seek Commands
+
+You can also seek via commands during playback:
+
+| Command | Usage | Description |
+|---------|-------|-------------|
+| `:NeoReplaySeek` | `:NeoReplaySeek 42` | Seek to a percentage of the session (0–100). |
+| `:NeoReplaySeekForward` | `:NeoReplaySeekForward 5` | Seek forward by N seconds (default 5). |
+| `:NeoReplaySeekBackward` | `:NeoReplaySeekBackward 5` | Seek backward by N seconds (default 5). |
+| `:NeoReplaySeekToStart` | `:NeoReplaySeekToStart` | Jump to the beginning. |
+| `:NeoReplaySeekToEnd` | `:NeoReplaySeekToEnd` | Jump to the end. |
 
 ## VHS Themes
 

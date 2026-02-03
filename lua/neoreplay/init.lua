@@ -175,6 +175,29 @@ function M.stats()
   ), vim.log.levels.INFO)
 end
 
+-- Seek functions
+function M.seek_forward(seconds)
+  local progress_bar = require('neoreplay.progress_bar')
+  progress_bar.seek_relative(seconds or 5)
+end
+
+function M.seek_backward(seconds)
+  M.seek_forward(-(seconds or 5))
+end
+
+function M.seek_to_start()
+  M.seek_backward(999999) -- Large negative to go to start
+end
+
+function M.seek_to_end()
+  M.seek_forward(999999) -- Large positive to go to end
+end
+
+function M.seek_to(percent)
+  local progress_bar = require('neoreplay.progress_bar')
+  progress_bar.seek_to_percent(percent / 100)
+end
+
 function M.cleanup()
   storage.clear_string_cache()
   ui.cleanup()

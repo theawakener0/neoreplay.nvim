@@ -67,3 +67,23 @@ end, {})
 vim.api.nvim_create_user_command('NeoReplayStats', neoreplay.stats, {})
 
 vim.api.nvim_create_user_command('NeoReplayCleanup', neoreplay.cleanup, {})
+
+-- Seek commands
+vim.api.nvim_create_user_command('NeoReplaySeek', function(opts)
+  local percent = tonumber(opts.args) or 0
+  neoreplay.seek_to(percent)
+end, { nargs = 1 })
+
+vim.api.nvim_create_user_command('NeoReplaySeekForward', function(opts)
+  local seconds = tonumber(opts.args) or 5
+  neoreplay.seek_forward(seconds)
+end, { nargs = '?' })
+
+vim.api.nvim_create_user_command('NeoReplaySeekBackward', function(opts)
+  local seconds = tonumber(opts.args) or 5
+  neoreplay.seek_backward(seconds)
+end, { nargs = '?' })
+
+vim.api.nvim_create_user_command('NeoReplaySeekToStart', neoreplay.seek_to_start, {})
+
+vim.api.nvim_create_user_command('NeoReplaySeekToEnd', neoreplay.seek_to_end, {})

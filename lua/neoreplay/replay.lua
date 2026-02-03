@@ -1,6 +1,7 @@
 local storage = require('neoreplay.storage')
 local ui = require('neoreplay.ui')
 local compressor = require('neoreplay.compressor')
+local progress_bar = require('neoreplay.progress_bar')
 local M = {}
 
 -- Performance configuration
@@ -148,6 +149,24 @@ function M.play(opts)
     end
   end
 
+  -- Calculate total time from compressed events
+  local total_time = 0
+  if #playback_events > 1 then
+    local first_event = playback_events[1]
+    local last_event = playback_events[#playback_events]
+    if first_event and last_event then
+      total_time = (last_event.end_time or last_event.timestamp or 0) - 
+                   (first_event.start_time or first_event.timestamp or 0)
+    end
+  end
+
+  -- Create progress bar
+  progress_bar.create({
+    total_events = #playback_events,
+    active_bufnr = focus_buf,
+    total_time = total_time,
+  })
+
   M.schedule_next()
 end
 
@@ -200,7 +219,18 @@ function M.schedule_next()
       cursor_update_counter = 0
     end
 
-    -- Debounced progress update
+    -- Update progress bar every 10 events
+    if current_event_index % 10 == 0 then
+      local current_time = 0
+      if playback_events[current_event_index] then
+        local first_event = playback_events[1]
+        local current_evt = playback_events[current_event_index]
+        current_time = (current_evt.timestamp or 0) - (first_event.timestamp or 0)
+      end
+      progress_bar.update(current_event_index, #playback_events, current_time, nil)
+    end
+
+    -- Debounced progress update (winbar)
     if current_event_index % PROGRESS_UPDATE_INTERVAL == 0 then
       local now = vim.loop.now()
       if now - last_winbar_update >= WINBAR_UPDATE_DEBOUNCE then
@@ -339,6 +369,10 @@ function M.stop_playback()
       pcall(vim.api.nvim_win_close, winid, true)
     end
   end
+  
+  -- Destroy progress bar
+  progress_bar.destroy()
+  
   replay_winid = nil
   target_bufnr = nil
   target_buf_map = {}
@@ -348,6 +382,86 @@ end
 
 function M.set_speed(speed)
   playback_speed = speed
+end
+
+-- Check if currently playing
+function M.is_playing()
+  return is_playing
+end
+
+-- Seek to specific event index (smooth seeking)
+function M.seek_to_event(target_index)
+  if not is_playing then return end
+  
+  target_index = math.max(1, math.min(target_index, #playback_events))
+  local direction = target_index > current_event_index and 1 or -1
+  local distance = math.abs(target_index - current_event_index)
+  
+  -- For small jumps: apply events directly
+  if distance <= 10 then
+    -- Apply events one by one
+    while current_event_index ~= target_index do
+      local event = playback_events[current_event_index]
+      if event then
+        apply_event(event, false)
+      end
+      current_event_index = current_event_index + direction
+      
+      -- Safety check
+      if current_event_index < 1 or current_event_index > #playback_events then
+        break
+      end
+    end
+    flush_cursor_update()
+    
+  else
+    -- For large jumps: reset and fast-forward
+    -- Reset all buffers to initial state
+    for original_bufnr, target in pairs(target_buf_map) do
+      local initial_state = storage.get_initial_state(original_bufnr)
+      if initial_state and target and vim.api.nvim_buf_is_valid(target) then
+        vim.api.nvim_buf_set_lines(target, 0, -1, false, initial_state)
+      end
+    end
+    
+    -- Apply events up to target in batches for speed
+    current_event_index = 1
+    local batch_size = math.max(1, math.floor(distance / 20)) -- Process in ~20 batches
+    
+    while current_event_index < target_index do
+      local end_of_batch = math.min(current_event_index + batch_size, target_index)
+      
+      -- Apply batch
+      for i = current_event_index, end_of_batch do
+        local event = playback_events[i]
+        if event then
+          -- For batch mode, skip cursor updates and UI updates
+          apply_event(event, true) -- skip_visual = true for speed
+        end
+      end
+      
+      current_event_index = end_of_batch + 1
+      
+      -- Allow UI to update periodically
+      if current_event_index % 50 == 0 then
+        vim.cmd('redraw')
+      end
+    end
+    
+    -- Final flush with visual updates
+    flush_cursor_update()
+  end
+  
+  -- Update progress bar
+  local current_time = 0
+  if playback_events[current_event_index] and playback_events[1] then
+    current_time = playback_events[current_event_index].timestamp - playback_events[1].timestamp
+  end
+  local total_time = 0
+  if playback_events[#playback_events] and playback_events[1] then
+    total_time = playback_events[#playback_events].timestamp - playback_events[1].timestamp
+  end
+  progress_bar.update(current_event_index, #playback_events, current_time, total_time)
 end
 
 return M
