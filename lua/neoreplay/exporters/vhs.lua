@@ -76,7 +76,7 @@ function M.export(opts)
     'Set Theme "' .. theme .. '"',
     format == "mp4" and 'Set Quality ' .. quality or '',
     'Hide',
-    'Type "nvim -u NONE -c `set runtimepath+=.` -c `lua require(\\"neoreplay\\").load_session(\\"' .. json_path .. '\\")` -c `lua require(\\"neoreplay\\").play({ speed = ' .. speed .. ' })`"',
+    'Type "nvim -u NONE -c `set runtimepath+=.` -c `lua require("neoreplay").load_session("' .. json_path .. '")` -c `lua require("neoreplay").play({ speed = ' .. speed .. ' })`"',
     'Enter',
     'Sleep 1s',
     'Show',
