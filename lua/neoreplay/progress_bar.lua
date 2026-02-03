@@ -117,6 +117,13 @@ end
 -- Setup mouse and keyboard keymaps
 function M.setup_keymaps()
   if not state.bufnr then return end
+
+  local controls = vim.g.neoreplay_controls or {}
+  local quit = controls.quit or 'q'
+  local quit_alt = controls.quit_alt or '<Esc>'
+  local pause = controls.pause or '<space>'
+  local faster = controls.faster or '='
+  local slower = controls.slower or '-'
   
   -- Mouse click to seek
   vim.keymap.set('n', '<LeftMouse>', function()
@@ -170,6 +177,18 @@ function M.setup_keymaps()
     { buffer = state.bufnr, desc = "Seek to end" })
   vim.keymap.set('n', '$', function() M.seek_to_percent(100) end,
     { buffer = state.bufnr, desc = "Seek to end" })
+
+  -- Replay controls (same as main replay window)
+  vim.keymap.set('n', quit, function() require('neoreplay.replay').stop_playback() end,
+    { buffer = state.bufnr, desc = "Quit replay" })
+  vim.keymap.set('n', quit_alt, function() require('neoreplay.replay').stop_playback() end,
+    { buffer = state.bufnr, desc = "Quit replay" })
+  vim.keymap.set('n', pause, function() require('neoreplay.replay').toggle_pause() end,
+    { buffer = state.bufnr, desc = "Pause/Play" })
+  vim.keymap.set('n', faster, function() require('neoreplay.replay').speed_up() end,
+    { buffer = state.bufnr, desc = "Speed up" })
+  vim.keymap.set('n', slower, function() require('neoreplay.replay').speed_down() end,
+    { buffer = state.bufnr, desc = "Speed down" })
 end
 
 -- Draw the progress bar
