@@ -361,7 +361,12 @@ end
 function M.stop_playback()
   is_playing = false
   if playback_timer then
-    pcall(vim.fn.timer_stop, playback_timer)
+    if type(playback_timer) == "number" then
+      pcall(vim.fn.timer_stop, playback_timer)
+    elseif playback_timer.stop then
+      pcall(playback_timer.stop, playback_timer)
+      pcall(playback_timer.close, playback_timer)
+    end
     playback_timer = nil
   end
   for _, winid in pairs(replay_win_map) do

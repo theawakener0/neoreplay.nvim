@@ -14,7 +14,7 @@ local function detect_theme()
     vim.notify("NeoReplay: Unknown VHS theme '" .. theme .. "'. Falling back to auto-detect.", vim.log.levels.WARN)
   end
 
-  local vhs_themes = {
+  local theme_map = {
     ["catppuccin-mocha"] = "Catppuccin Mocha",
     ["catppuccin-frappe"] = "Catppuccin Frappe",
     ["catppuccin-macchiato"] = "Catppuccin Macchiato",
@@ -28,11 +28,11 @@ local function detect_theme()
   }
   local user_mappings = vim.g.neoreplay_vhs_mappings or {}
   for k, v in pairs(user_mappings) do
-    vhs_themes[k:lower()] = v
+    theme_map[k:lower()] = v
   end
 
   local current_colorscheme = vim.g.colors_name or ""
-  theme = vhs_themes[current_colorscheme:lower()] or "Catppuccin Frappe"
+  theme = theme_map[current_colorscheme:lower()] or "Catppuccin Frappe"
   return vhs_themes.resolve(theme) or theme
 end
 

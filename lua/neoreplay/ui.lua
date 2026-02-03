@@ -8,6 +8,16 @@ local pending_annotations = {}
 
 local annotation_ns = vim.api.nvim_create_namespace('neoreplay_ui')
 
+local function stop_timer(timer)
+  if not timer then return end
+  if type(timer) == "number" then
+    pcall(vim.fn.timer_stop, timer)
+  elseif timer.stop then
+    pcall(timer.stop, timer)
+    pcall(timer.close, timer)
+  end
+end
+
 local function escape_winbar(text)
   return tostring(text):gsub("%%", "%%%%")
 end
@@ -120,7 +130,7 @@ function M.set_annotation_debounced(winid, annotation, delay_ms)
   
   -- Cancel existing timer
   if debounce_timers[winid] then
-    pcall(vim.fn.timer_stop, debounce_timers[winid])
+    stop_timer(debounce_timers[winid])
   end
   
   -- Set new timer
@@ -152,7 +162,7 @@ end
 -- Cleanup function
 function M.cleanup()
   for winid, timer in pairs(debounce_timers) do
-    pcall(vim.fn.timer_stop, timer)
+    stop_timer(timer)
   end
   debounce_timers = {}
   pending_annotations = {}

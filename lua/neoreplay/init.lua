@@ -106,8 +106,13 @@ end
 function M.record_ffmpeg(filename)
   local winid = vim.api.nvim_get_vvar('windowid')
   if not winid or winid == 0 then
-    vim.notify("NeoReplay: Window ID not found. Recording requires Neovim in a GUI or supported terminal.", vim.log.levels.ERROR)
-    return
+    local env_winid = tonumber(vim.env.WINDOWID or "")
+    if env_winid and env_winid > 0 then
+      winid = env_winid
+    else
+      vim.notify("NeoReplay: Window ID not found. Recording requires Neovim in a GUI or a terminal that exposes $WINDOWID.", vim.log.levels.ERROR)
+      return
+    end
   end
 
   local cmd = string.format("xwininfo -id %d | grep -E 'Width:|Height:|Absolute-upper-left-X:|Absolute-upper-left-Y:'", winid)
