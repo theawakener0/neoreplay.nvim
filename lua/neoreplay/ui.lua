@@ -2,6 +2,12 @@ local M = {}
 
 M.controls = " [SPACE] Pause/Play  [=/-] Speed Up/Down  [q] Quit "
 
+-- Debounce state
+local debounce_timers = {}
+local pending_annotations = {}
+
+local annotation_ns = vim.api.nvim_create_namespace('neoreplay_ui')
+
 local function setup_replay_buffer(bufnr, original_bufnr)
   vim.api.nvim_buf_set_option(bufnr, 'bufhidden', 'wipe')
   vim.api.nvim_buf_set_option(bufnr, 'buftype', 'nofile')
@@ -85,16 +91,67 @@ function M.create_scene_windows(original_bufnrs, focus_bufnr)
   return bufnr_map, win_map
 end
 
+-- Immediate progress update (use sparingly)
 function M.set_progress(winid, progress)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
   local text = string.format("%s | %d%%", M.controls, progress)
   vim.api.nvim_set_option_value('winbar', text, { scope = 'local', win = winid })
 end
 
+-- Immediate annotation update (use sparingly)
 function M.set_annotation(winid, annotation)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
   local text = string.format("%s | %s", M.controls, annotation or "")
   vim.api.nvim_set_option_value('winbar', text, { scope = 'local', win = winid })
+end
+
+-- Debounced annotation update (preferred for high-frequency updates)
+function M.set_annotation_debounced(winid, annotation, delay_ms)
+  delay_ms = delay_ms or 100
+  
+  if not winid then return end
+  
+  -- Store pending annotation
+  pending_annotations[winid] = annotation
+  
+  -- Cancel existing timer
+  if debounce_timers[winid] then
+    pcall(vim.fn.timer_stop, debounce_timers[winid])
+  end
+  
+  -- Set new timer
+  debounce_timers[winid] = vim.defer_fn(function()
+    if vim.api.nvim_win_is_valid(winid) then
+      local text = string.format("%s | %s", M.controls, pending_annotations[winid] or "")
+      vim.api.nvim_set_option_value('winbar', text, { scope = 'local', win = winid })
+    end
+    debounce_timers[winid] = nil
+    pending_annotations[winid] = nil
+  end, delay_ms)
+end
+
+-- Set virtual text annotation (more performant alternative to winbar)
+function M.set_virtual_annotation(bufnr, annotation, highlight)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then return end
+  
+  highlight = highlight or 'Comment'
+  
+  -- Clear existing virtual text
+  vim.api.nvim_buf_clear_namespace(bufnr, annotation_ns, 0, -1)
+  
+  -- Set virtual text on first line
+  vim.api.nvim_buf_set_virtual_text(bufnr, annotation_ns, 0, {
+    { annotation, highlight }
+  }, {})
+end
+
+-- Cleanup function
+function M.cleanup()
+  for winid, timer in pairs(debounce_timers) do
+    pcall(vim.fn.timer_stop, timer)
+  end
+  debounce_timers = {}
+  pending_annotations = {}
 end
 
 return M

@@ -63,3 +63,7 @@ end, { nargs = '?' })
 vim.api.nvim_create_user_command('NeoReplayVHSThemes', function()
   neoreplay.show_vhs_themes()
 end, {})
+
+vim.api.nvim_create_user_command('NeoReplayStats', neoreplay.stats, {})
+
+vim.api.nvim_create_user_command('NeoReplayCleanup', neoreplay.cleanup, {})

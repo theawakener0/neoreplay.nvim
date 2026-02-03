@@ -7,6 +7,7 @@ local vhs_exporter = require('neoreplay.exporters.vhs')
 local frames_exporter = require('neoreplay.exporters.frames')
 local asciinema_exporter = require('neoreplay.exporters.asciinema')
 local vhs_themes = require('neoreplay.vhs_themes')
+local ui = require('neoreplay.ui')
 
 local M = {}
 
@@ -54,7 +55,7 @@ function M.play()
 end
 
 function M.clear()
-  storage.start() -- Reset session
+  storage.start()
   storage.stop()
   vim.notify("NeoReplay: Session cleared.", vim.log.levels.INFO)
 end
@@ -68,13 +69,13 @@ function M.chronos(opts)
     vim.notify("NeoReplay: History excavated. Starting replay...", vim.log.levels.INFO)
     
     opts = opts or {}
-    opts.title = opts.title or "⏳ CHRONOS REPLAY"
+    opts.title = opts.title or "[CHRONOS REPLAY]"
     replay.play(opts)
   end
 end
 
 function M.flex_chronos()
-  M.chronos({ speed = 100.0, title = "⚡ CHRONOS FLEX ⚡" })
+  M.chronos({ speed = 100.0, title = "[CHRONOS FLEX]" })
 end
 
 function M.load_session(path)
@@ -109,7 +110,6 @@ function M.record_ffmpeg(filename)
     return
   end
 
-  -- Detect geometry (Linux/X11 specific technically, but impressive)
   local cmd = string.format("xwininfo -id %d | grep -E 'Width:|Height:|Absolute-upper-left-X:|Absolute-upper-left-Y:'", winid)
   local handle = io.popen(cmd)
   local result = handle:read("*a")
@@ -167,6 +167,20 @@ function M.flex()
   replay.play({ speed = 100.0, title = "[FLEX MODE]" })
 end
 
+function M.stats()
+  local s = storage.get_stats()
+  vim.notify(string.format(
+    "NeoReplay Stats: %d events | %d buffers | Cache: %d strings",
+    s.events, s.buffers, s.string_cache_size
+  ), vim.log.levels.INFO)
+end
+
+function M.cleanup()
+  storage.clear_string_cache()
+  ui.cleanup()
+  vim.notify("NeoReplay: Memory caches cleared", vim.log.levels.INFO)
+end
+
 function M.export()
   local session = storage.get_session()
   local data = vim.fn.json_encode(session)
@@ -194,7 +208,7 @@ function M.setup(opts)
   vim.g.neoreplay_playback_speed = opts.playback_speed or 20.0
   
   -- Export options
-  vim.g.neoreplay_vhs_theme = opts.vhs_theme -- can be nil for auto-detect
+  vim.g.neoreplay_vhs_theme = opts.vhs_theme
   vim.g.neoreplay_vhs_mappings = opts.vhs_mappings or {}
 
   -- Replay control keys
@@ -221,6 +235,8 @@ function M.setup(opts)
     if maps.export_frames then vim.keymap.set('n', maps.export_frames, M.export_frames, { desc = "NeoReplay: Export Frames" }) end
     if maps.export_asciinema then vim.keymap.set('n', maps.export_asciinema, M.export_asciinema, { desc = "NeoReplay: Export Asciinema" }) end
     if maps.record_ffmpeg then vim.keymap.set('n', maps.record_ffmpeg, M.record_ffmpeg, { desc = "NeoReplay: Record with FFmpeg" }) end
+    if maps.stats then vim.keymap.set('n', maps.stats, M.stats, { desc = "NeoReplay: Show stats" }) end
+    if maps.cleanup then vim.keymap.set('n', maps.cleanup, M.cleanup, { desc = "NeoReplay: Cleanup memory" }) end
   end
 end
 

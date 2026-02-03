@@ -3,6 +3,14 @@ local ui = require('neoreplay.ui')
 local compressor = require('neoreplay.compressor')
 local M = {}
 
+-- Performance configuration
+local RENDER_BUDGET_MS = 8  -- Max time per frame (8ms = ~120fps target)
+local MIN_DELAY_MS = 16     -- Minimum delay between frames (~60fps cap)
+local PROGRESS_UPDATE_INTERVAL = 50  -- Update UI every N events (was 10)
+local MAX_EVENTS_PER_TICK = 200    -- Increased from 100
+local CURSOR_UPDATE_INTERVAL = 5   -- Update cursor every N events
+local WINBAR_UPDATE_DEBOUNCE = 150  -- Debounce winbar updates (ms)
+
 local playback_timer = nil
 local playback_speed = 20.0
 local is_playing = false
@@ -14,17 +22,23 @@ local replay_winid = nil
 local replay_win_map = {}
 local on_finish_callback = nil
 local last_progress = nil
-local progress_update_interval = 10
-local max_events_per_tick = 100
-local max_tick_ms = 6
 local adaptive_batching = true
 local last_tick_ms = 0
 local cadence_window = { count = 0, start_time = 0 }
 
-local function apply_event(event)
+-- Frame skipping and double buffering
+local pending_cursor_update = nil
+local last_winbar_update = 0
+local frame_skip_counter = 0
+local total_frames_skipped = 0
+
+-- Pre-allocated tables for hot paths
+local text_cache = {}
+
+local function apply_event(event, skip_visual)
   if event.kind == 'segment' then
-    if replay_winid then
-      ui.set_annotation(replay_winid, event.label or 'Segment')
+    if replay_winid and not skip_visual then
+      ui.set_annotation_debounced(replay_winid, event.label or 'Segment', WINBAR_UPDATE_DEBOUNCE)
     end
     return
   end
@@ -32,14 +46,42 @@ local function apply_event(event)
   local buf = target_buf_map[event.buf] or target_bufnr
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
 
-  vim.api.nvim_buf_set_lines(buf, event.lnum - 1, event.lastline, false, event.after_lines or {})
-
-  local winid = replay_win_map[event.buf] or replay_winid
-  if winid and vim.api.nvim_win_is_valid(winid) then
-    pcall(vim.api.nvim_win_set_cursor, winid, {math.min(event.lnum, vim.api.nvim_buf_line_count(buf)), 0})
+  -- Use set_text for single-line changes (faster than set_lines)
+  if event.after_lines and #event.after_lines == 1 and 
+     event.lastline - event.lnum == 0 and not skip_visual then
+    local line_idx = event.lnum - 1
+    local current_lines = vim.api.nvim_buf_get_lines(buf, line_idx, line_idx + 1, false)
+    if current_lines[1] then
+      vim.api.nvim_buf_set_text(buf, line_idx, 0, line_idx, #current_lines[1], event.after_lines)
+    else
+      vim.api.nvim_buf_set_lines(buf, line_idx, line_idx + 1, false, event.after_lines)
+    end
   else
-    pcall(vim.api.nvim_win_set_cursor, 0, {math.min(event.lnum, vim.api.nvim_buf_line_count(buf)), 0})
+    vim.api.nvim_buf_set_lines(buf, event.lnum - 1, event.lastline, false, event.after_lines or {})
   end
+
+  -- Batch cursor updates - queue instead of immediate
+  if not skip_visual then
+    pending_cursor_update = { buf = buf, lnum = event.lnum, win = replay_win_map[event.buf] or replay_winid }
+  end
+end
+
+local function flush_cursor_update()
+  if not pending_cursor_update then return end
+  
+  local winid = pending_cursor_update.win
+  local buf = pending_cursor_update.buf
+  local lnum = pending_cursor_update.lnum
+  
+  if winid and vim.api.nvim_win_is_valid(winid) and vim.api.nvim_buf_is_valid(buf) then
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    pcall(vim.api.nvim_win_set_cursor, winid, {math.min(lnum, line_count), 0})
+  elseif vim.api.nvim_buf_is_valid(buf) then
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    pcall(vim.api.nvim_win_set_cursor, 0, {math.min(lnum, line_count), 0})
+  end
+  
+  pending_cursor_update = nil
 end
 
 function M.play(opts)
@@ -60,20 +102,13 @@ function M.play(opts)
   playback_speed = opts.speed or vim.g.neoreplay_playback_speed or 20.0
   last_progress = nil
   cadence_window = { count = 0, start_time = vim.loop.now() }
-  progress_update_interval = opts.progress_update_interval or 10
-  if progress_update_interval < 1 then
-    progress_update_interval = 10
-  end
-  max_events_per_tick = opts.max_events_per_tick or 100
-  if max_events_per_tick < 1 then
-    max_events_per_tick = 100
-  end
-  max_tick_ms = opts.max_tick_ms or 6
-  if max_tick_ms < 1 then
-    max_tick_ms = 6
-  end
-  adaptive_batching = opts.adaptive_batching ~= false
-  last_tick_ms = 0
+  frame_skip_counter = 0
+  total_frames_skipped = 0
+  pending_cursor_update = nil
+  
+  -- Performance tuning from opts
+  RENDER_BUDGET_MS = opts.render_budget_ms or RENDER_BUDGET_MS
+  MAX_EVENTS_PER_TICK = opts.max_events_per_tick or MAX_EVENTS_PER_TICK
   
   -- Create scene windows
   local bufs = {}
@@ -101,7 +136,7 @@ function M.play(opts)
   end
 
   if opts.title then
-    vim.api.nvim_win_set_config(winid, { title = " " .. opts.title .. " " })
+    vim.api.nvim_win_set_config(replay_winid, { title = " " .. opts.title .. " " })
   end
 
   -- Set initial state
@@ -128,43 +163,85 @@ function M.schedule_next()
   local start_ms = vim.loop.now()
   local processed = 0
   local last_event = nil
+  local should_skip_visual = false
+  local cursor_update_counter = 0
 
+  -- Check if we're behind schedule and need to skip frames
+  local behind_schedule = last_tick_ms > RENDER_BUDGET_MS * 1.5
+  
   while is_playing and current_event_index <= #playback_events do
+    -- Check render budget
+    local elapsed = vim.loop.now() - start_ms
+    if elapsed >= RENDER_BUDGET_MS then
+      break
+    end
+
+    -- Adaptive frame skipping when behind
+    if behind_schedule and frame_skip_counter < 2 then
+      should_skip_visual = true
+      frame_skip_counter = frame_skip_counter + 1
+      total_frames_skipped = total_frames_skipped + 1
+    else
+      should_skip_visual = false
+      frame_skip_counter = 0
+    end
+
     local event = playback_events[current_event_index]
-    apply_event(event)
+    apply_event(event, should_skip_visual)
     last_event = event
 
     cadence_window.count = cadence_window.count + 1
+    processed = processed + 1
+    cursor_update_counter = cursor_update_counter + 1
 
-    if current_event_index % progress_update_interval == 0 then
-      local progress = math.floor((current_event_index / #playback_events) * 100)
-      if progress ~= last_progress then
-        local elapsed = math.max((vim.loop.now() - cadence_window.start_time) / 1000, 0.001)
-        local rate = cadence_window.count / elapsed
-        local label = ""
-        if event.kind ~= 'segment' then
-          label = string.format("%s • %s", event.edit_type or "edit", event.lines_changed and (tostring(event.lines_changed) .. " lines") or "")
+    -- Flush cursor update periodically
+    if cursor_update_counter >= CURSOR_UPDATE_INTERVAL then
+      flush_cursor_update()
+      cursor_update_counter = 0
+    end
+
+    -- Debounced progress update
+    if current_event_index % PROGRESS_UPDATE_INTERVAL == 0 then
+      local now = vim.loop.now()
+      if now - last_winbar_update >= WINBAR_UPDATE_DEBOUNCE then
+        local progress = math.floor((current_event_index / #playback_events) * 100)
+        if progress ~= last_progress then
+          local elapsed = math.max((now - cadence_window.start_time) / 1000, 0.001)
+          local rate = cadence_window.count / elapsed
+          local label = ""
+          if event.kind ~= 'segment' then
+            label = string.format("%s • %s", event.edit_type or "edit", event.lines_changed and (tostring(event.lines_changed) .. " lines") or "")
+          end
+          local annotation = string.format("%d%% | %.1f ev/s | %s", progress, rate, label)
+          ui.set_annotation_debounced(replay_winid, annotation, WINBAR_UPDATE_DEBOUNCE)
+          last_progress = progress
+          last_winbar_update = now
+          
+          -- Reset cadence window
+          cadence_window = { count = 0, start_time = now }
         end
-        local annotation = string.format("%d%% | %.1f ev/s | %s", progress, rate, label)
-        ui.set_annotation(replay_winid, annotation)
-        last_progress = progress
       end
     end
 
     current_event_index = current_event_index + 1
-    processed = processed + 1
-    if processed >= max_events_per_tick or (vim.loop.now() - start_ms) >= max_tick_ms then
+
+    -- Check hard limits
+    if processed >= MAX_EVENTS_PER_TICK then
       break
     end
 
+    -- Check timing for next event
     local next_event = playback_events[current_event_index]
     if next_event then
       local delay = (next_event.start_time - event.end_time) / playback_speed
-      if delay >= 0.02 then
+      if delay >= 0.015 then  -- Was 0.02, tighter threshold
         break
       end
     end
   end
+
+  -- Flush any pending cursor update
+  flush_cursor_update()
 
   if not is_playing then return end
 
@@ -174,19 +251,21 @@ function M.schedule_next()
     return
   end
 
+  local MIN_DELAY_S = 0.016
+
   local next_event = playback_events[current_event_index]
-  local delay = 0.02
+  local delay = MIN_DELAY_S
   if last_event and next_event then
     delay = (next_event.start_time - last_event.end_time) / playback_speed
-    if delay < 0.02 then delay = 0.02 end
+    if delay < MIN_DELAY_S then delay = MIN_DELAY_S end
   end
 
   last_tick_ms = vim.loop.now() - start_ms
   if adaptive_batching then
-    if last_tick_ms > max_tick_ms then
-      max_events_per_tick = math.max(10, math.floor(max_events_per_tick * 0.8))
-    elseif last_tick_ms < (max_tick_ms * 0.5) then
-      max_events_per_tick = math.min(500, math.floor(max_events_per_tick * 1.2))
+    if last_tick_ms > RENDER_BUDGET_MS then
+      MAX_EVENTS_PER_TICK = math.max(50, math.floor(MAX_EVENTS_PER_TICK * 0.9))
+    elseif last_tick_ms < (RENDER_BUDGET_MS * 0.4) then
+      MAX_EVENTS_PER_TICK = math.min(400, math.floor(MAX_EVENTS_PER_TICK * 1.1))
     end
   end
 
@@ -220,7 +299,7 @@ function M.validate_and_finish()
   if mismatch then
     vim.notify("NeoReplay Fidelity Error: Final buffer does not match original!", vim.log.levels.ERROR)
   else
-    vim.notify("NeoReplay: Replay finished with 100% fidelity.", vim.log.levels.INFO)
+    vim.notify("NeoReplay: Replay finished with 100% fidelity. (Skipped " .. total_frames_skipped .. " frames for performance)", vim.log.levels.INFO)
   end
 
   if on_finish_callback then
@@ -264,6 +343,7 @@ function M.stop_playback()
   target_bufnr = nil
   target_buf_map = {}
   replay_win_map = {}
+  pending_cursor_update = nil
 end
 
 function M.set_speed(speed)

@@ -18,6 +18,9 @@ Stop re-reading finished code. Replay how it was built, one semantic step at a t
 
 Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim undo tree, reconstructs the timeline of your edits, and replays them as if you had been recording the whole time.
 
+> **Recommended:** Keep your undo history persistent for best Chronos results:
+> `vim.opt.undofile = true`
+
 - **Command**: `:NeoReplayChronos`
 - **Flex Mode**: `:NeoReplayFlexChronos` (100x speed archeology)
 

@@ -3,23 +3,46 @@ local utils = require('neoreplay.utils')
 
 local M = {}
 
-local function get_all_sequences(entries, seqs)
+-- Optimized sequence collection without full flattening
+local function collect_sequences_streaming(entries, callback)
   if not entries then return end
+  
   for _, entry in ipairs(entries) do
-    if entry.seq then seqs[entry.seq] = true end
-    if entry.alt then get_all_sequences(entry.alt, seqs) end
-    -- Note: undotree structure depends on nvim version but alt is standard
+    local cur = entry
+    while cur do
+      if cur.seq then
+        callback(cur)
+      end
+      -- Process alternatives inline instead of recursive flattening
+      if cur.alt then
+        for _, alt_entry in ipairs(cur.alt) do
+          local alt_cur = alt_entry
+          while alt_cur do
+            if alt_cur.seq then
+              callback(alt_cur)
+            end
+            alt_cur = alt_cur.next
+          end
+        end
+      end
+      cur = cur.next
+    end
   end
 end
 
-local function collect_branch_points(entries, points)
-  if not entries then return end
-  for _, entry in ipairs(entries) do
-    if entry.alt and entry.seq then
-      points[entry.seq] = true
-      collect_branch_points(entry.alt, points)
-    end
+local function clamp(val, min_val, max_val)
+  if val < min_val then return min_val end
+  if val > max_val then return max_val end
+  return val
+end
+
+-- Efficient cache copy using pre-allocated buffer
+local function copy_cache_efficient(tbl, capacity)
+  local copy = {}
+  for i, v in ipairs(tbl) do
+    copy[i] = v
   end
+  return copy
 end
 
 function M.excavate(bufnr, opts)
@@ -29,87 +52,121 @@ function M.excavate(bufnr, opts)
     vim.notify("NeoReplay Chronos: Recording is active. Stop recording or pass force=true.", vim.log.levels.WARN)
     return nil
   end
+  
   local ut = vim.fn.undotree()
   if not ut.entries or #ut.entries == 0 then
     vim.notify("NeoReplay Chronos: No undo history found.", vim.log.levels.WARN)
     return nil
   end
 
-  -- 1. Create a temporary undo file
-  local tmp_undo = os.tmpname()
-  local ok, err = pcall(function()
-    vim.api.nvim_buf_call(bufnr, function()
-      vim.cmd('wundo! ' .. tmp_undo)
-    end)
-  end)
-
-  if not ok then
-    vim.notify("NeoReplay Chronos: Failed to write temporary undo file. " .. tostring(err), vim.log.levels.ERROR)
-    return nil
+  if not vim.o.undofile then
+    vim.notify("NeoReplay Chronos: undofile is disabled. History may be truncated; consider setting vim.opt.undofile = true.", vim.log.levels.WARN)
   end
 
-  -- 2. Setup a hidden "Shadow Buffer"
-  -- Create a new unlisted scratch buffer
-  local scratch = vim.api.nvim_create_buf(false, true)
+  -- Get current state before we start
+  local current_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local initial_state = copy_cache_efficient(current_lines)
+
+  -- Collect sequences without flattening - use streaming approach
+  local seq_map = { [0] = true }
+  local seq_info = {}
+  local branch_points = {}
   
-  -- Use a pcall block for the main excavation to ensure cleanup
-  local events = {}
-  local success, exc_err = pcall(function()
-    -- Initialize scratch buffer with current content
-    -- (Though we'll undo back to 0 immediately)
-    local current_lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-    vim.api.nvim_buf_set_lines(scratch, 0, -1, false, current_lines)
-    
-    -- Load history into scratch
-    vim.api.nvim_buf_call(scratch, function()
-      vim.cmd('rundo ' .. tmp_undo)
-    end)
-
-    -- 3. Gather and Sort Sequences
-    local seq_map = { [0] = true }
-    get_all_sequences(ut.entries, seq_map)
-    local sorted_seqs = {}
-    for seq in pairs(seq_map) do table.insert(sorted_seqs, seq) end
-    table.sort(sorted_seqs)
-
-    local branch_points = {}
-    collect_branch_points(ut.entries, branch_points)
-
-    -- 4. Excavate
-    local cache = {}
-    
-    -- Capability: deep copy cache without unpack limit
-    local function copy_cache(tbl)
-      local copy = {}
-      for i, v in ipairs(tbl) do copy[i] = v end
-      return copy
+  collect_sequences_streaming(ut.entries, function(entry)
+    if entry.seq then
+      seq_map[entry.seq] = true
+      local t = entry.time or 0
+      if not seq_info[entry.seq] then
+        seq_info[entry.seq] = { seq = entry.seq, time = t }
+      elseif seq_info[entry.seq].time == 0 and t ~= 0 then
+        seq_info[entry.seq].time = t
+      end
     end
+    if entry.alt then
+      branch_points[entry.seq] = true
+    end
+  end)
 
-    -- Go to start (seq 0)
-    vim.api.nvim_buf_call(scratch, function()
-      vim.cmd('noautocmd undo 0')
-      cache = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)
-    end)
+  -- Build sorted sequence list
+  local seq_list = {}
+  for seq in pairs(seq_map) do
+    local info = seq_info[seq] or { seq = seq, time = 0 }
+    table.insert(seq_list, info)
+  end
 
-    -- Capture initial state for storage
-    local initial_state = copy_cache(cache)
+  table.sort(seq_list, function(a, b)
+    if a.time == b.time then
+      return a.seq < b.seq
+    end
+    if a.time == 0 then return false end
+    if b.time == 0 then return true end
+    return a.time < b.time
+  end)
 
-    -- Attach listener to scratch buffer
-    -- We'll collect raw changes
-    local raw_events = {}
-    local current_timestamp = 1000.0 -- Synthetic start time
+  -- Calculate timestamps with smoothing
+  local min_step = opts.smooth_min_step or 0.03
+  local max_step = opts.smooth_max_step or 1.25
+  local per_event_step = opts.smooth_event_step or 0.015
 
-    vim.api.nvim_buf_attach(scratch, false, {
+  local seq_timestamps = {}
+  local base_time = 1000.0
+  local last_time = nil
+  for _, item in ipairs(seq_list) do
+    local raw_delta = 0
+    if last_time and item.time ~= 0 then
+      raw_delta = item.time - last_time
+    end
+    local delta = (item.time == 0) and min_step or clamp(raw_delta, min_step, max_step)
+    base_time = base_time + delta
+    seq_timestamps[item.seq] = base_time
+    if item.time ~= 0 then
+      last_time = item.time
+    end
+  end
+
+  -- Use the current buffer with a marker to track state
+  -- Instead of scratch buffer + full copy, we use undo commands directly
+  local raw_events = {}
+  local cache = copy_cache_efficient(current_lines)
+  local current_timestamp = 1000.0
+  local pending_timestamp = nil
+  local intra_step = 0
+
+  -- Store original undo position
+  local original_seq = vim.api.nvim_buf_call(bufnr, function()
+    return vim.fn.undotree().seq_cur or 0
+  end)
+
+  -- Attach listener to capture changes
+  local detach_fn = nil
+  local listener_attached = false
+  
+  -- Pre-allocate event table capacity
+  local estimated_events = #seq_list * 2  -- Rough estimate
+  
+  local function capture_changes()
+    detach_fn = vim.api.nvim_buf_attach(bufnr, false, {
       on_lines = function(_, _, _, first, last, new_last)
-        -- 'before' lines from our current cache
+        if not listener_attached then return end
+        
         local before_lines = {}
-        for i = first + 1, last do
-          table.insert(before_lines, cache[i] or "")
+        local before_start = first + 1
+        local before_end = last
+        
+        -- Fast path for small ranges
+        if before_end - before_start < 5 then
+          for i = before_start, before_end do
+            before_lines[i - before_start + 1] = cache[i] or ""
+          end
+        else
+          for i = before_start, before_end do
+            table.insert(before_lines, cache[i] or "")
+          end
         end
         local before_text = table.concat(before_lines, "\n")
 
-        -- Update cache efficiently in-place
-        local scratch_lines = vim.api.nvim_buf_get_lines(scratch, first, new_last, false)
+        -- Update cache efficiently
+        local scratch_lines = vim.api.nvim_buf_get_lines(bufnr, first, new_last, false)
         local diff = #scratch_lines - (last - first)
         if diff ~= 0 then
           table.move(cache, last + 1, #cache, first + #scratch_lines + 1)
@@ -121,26 +178,39 @@ function M.excavate(bufnr, opts)
           cache[first + i] = line
         end
 
+        local ts = (pending_timestamp or current_timestamp) + intra_step
         table.insert(raw_events, {
-          timestamp = current_timestamp,
-          buf = bufnr, -- Report original bufnr
+          timestamp = ts,
+          buf = bufnr,
           before = before_text,
           after = table.concat(scratch_lines, "\n"),
           lnum = first + 1,
           lastline = last,
           new_lastline = new_last
         })
-        current_timestamp = current_timestamp + 0.1 -- Synthetic gap
+        intra_step = intra_step + per_event_step
+        current_timestamp = ts
       end
     })
+    listener_attached = true
+  end
 
-    -- Traverse forward through all sequences
-    vim.api.nvim_buf_call(scratch, function()
-      for _, seq in ipairs(sorted_seqs) do
+  -- Capture changes during undo traversal
+  local success, exc_err = pcall(function()
+    capture_changes()
+    
+    -- Traverse undo history
+    vim.api.nvim_buf_call(bufnr, function()
+      -- Go to beginning
+      vim.cmd('noautocmd undo 0')
+      
+      for _, info in ipairs(seq_list) do
+        local seq = info.seq
         if seq > 0 then
           if branch_points[seq] then
+            local seg_ts = current_timestamp + min_step
             table.insert(raw_events, {
-              timestamp = current_timestamp,
+              timestamp = seg_ts,
               buf = bufnr,
               kind = 'segment',
               label = 'Branch point @' .. tostring(seq),
@@ -148,64 +218,66 @@ function M.excavate(bufnr, opts)
               lastline = 0,
               new_lastline = 0,
             })
-            current_timestamp = current_timestamp + 0.05
+            current_timestamp = seg_ts
           end
+          pending_timestamp = seq_timestamps[seq] or (current_timestamp + min_step)
+          intra_step = 0
           vim.cmd('noautocmd undo ' .. seq)
         end
       end
-      -- Ensure we capture the absolute final state after all transitions
-      cache = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)
+      
+      -- Return to original position
+      vim.cmd('noautocmd undo ' .. original_seq)
     end)
-
-    -- Persist into storage for replay/consumers
-    if not storage.is_active() then
-      storage.start()
-    end
-    local initial_copy = {}
-    for i, v in ipairs(initial_state) do initial_copy[i] = v end
-    storage.set_initial_state(bufnr, initial_copy)
-
-    local buffer_meta = utils.get_buffer_meta(bufnr)
-    storage.set_buffer_meta(bufnr, buffer_meta)
-
-    for _, ev in ipairs(raw_events) do
-      if ev.kind ~= 'segment' then
-        ev.bufname = buffer_meta.name
-        ev.filetype = buffer_meta.filetype
-        ev.edit_type = utils.edit_type(ev.before or '', ev.after or '')
-        ev.lines_changed = math.abs((ev.new_lastline or 0) - (ev.lastline or 0))
-        ev.kind = ev.kind or 'edit'
-      end
-      storage.add_event(ev)
-    end
-
-    local final_copy = {}
-    for i, v in ipairs(cache) do final_copy[i] = v end
-    storage.set_final_state(bufnr, final_copy)
-
-    local index = { by_buf = { [bufnr] = #raw_events }, total_events = #raw_events }
-    events = {
-      initial_state = initial_copy,
-      raw_events = raw_events,
-      final_state = final_copy
-      ,buffer_meta = buffer_meta
-      ,index = index
-      ,metadata = { excavated = true }
-    }
+    
+    -- Get final state
+    cache = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   end)
 
-  -- Cleanup
-  if os.date("%s", 0) ~= "0" then -- simple check if os.remove is safe
-    os.remove(tmp_undo)
+  -- Detach listener
+  listener_attached = false
+  if detach_fn then
+    pcall(detach_fn)
   end
-  vim.api.nvim_buf_delete(scratch, { force = true })
 
   if not success then
     vim.notify("NeoReplay Chronos: Excavation error: " .. tostring(exc_err), vim.log.levels.ERROR)
     return nil
   end
 
-  return events
+  -- Persist into storage
+  if not storage.is_active() then
+    storage.start()
+  end
+  
+  storage.set_initial_state(bufnr, initial_state)
+  local buffer_meta = utils.get_buffer_meta(bufnr)
+  storage.set_buffer_meta(bufnr, buffer_meta)
+
+  for _, ev in ipairs(raw_events) do
+    if ev.kind ~= 'segment' then
+      ev.bufname = buffer_meta.name
+      ev.filetype = buffer_meta.filetype
+      ev.edit_type = utils.edit_type(ev.before or '', ev.after or '')
+      ev.lines_changed = math.abs((ev.new_lastline or 0) - (ev.lastline or 0))
+      ev.kind = ev.kind or 'edit'
+    end
+    storage.add_event(ev)
+  end
+
+  local final_state = copy_cache_efficient(cache)
+  storage.set_final_state(bufnr, final_state)
+
+  local index = { by_buf = { [bufnr] = #raw_events }, total_events = #raw_events }
+  
+  return {
+    initial_state = initial_state,
+    raw_events = raw_events,
+    final_state = final_state,
+    buffer_meta = buffer_meta,
+    index = index,
+    metadata = { excavated = true }
+  }
 end
 
 return M

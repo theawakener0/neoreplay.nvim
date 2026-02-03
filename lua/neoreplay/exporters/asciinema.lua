@@ -33,7 +33,7 @@ if ! command -v asciinema >/dev/null 2>&1; then
   echo "asciinema not installed"
   exit 1
 fi
-asciinema rec --quiet --overwrite -c "nvim -u NONE -c 'set runtimepath+=.' -c 'lua require(\"neoreplay\").load_session(\"]] .. json_path .. [[\")' -c 'lua require(\"neoreplay\").play({ speed = ]] .. speed .. [[ })'" " ]] .. out_path .. [["
+asciinema rec --quiet --overwrite -c "nvim -u NONE -c 'set runtimepath+=.' -c 'lua require(\"neoreplay\").load_session(\"]] .. json_path .. [[\")' -c 'lua require(\"neoreplay\").play({ speed = ]] .. speed .. [[ })'" ]] .. out_path .. [[
 ]]
 
   local script_path = opts.script or (base_dir .. '/neoreplay_asciinema.sh')
