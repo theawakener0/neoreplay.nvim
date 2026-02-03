@@ -183,3 +183,10 @@ All available VHS themes are bundled. Use `:NeoReplayVHSThemes` to open the full
 ## License
 
 MIT - See [LICENSE](LICENSE) for details.
+
+## Acknowledgements
+
+- **[VHS](https://github.com/charmbracelet/vhs)**: For providing the export engine that makes high-quality GIFs and MP4s possible.
+- **[FFmpeg](https://github.com/FFmpeg/FFmpeg)**: For the heavy lifting in video processing.
+- **[Hack Club](https://github.com/hackclub)**: For fostering a great community of builders.
+

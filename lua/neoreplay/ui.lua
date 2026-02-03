@@ -27,7 +27,7 @@ local function setup_replay_buffer(bufnr, original_bufnr)
   vim.api.nvim_buf_set_option(bufnr, 'buftype', 'nofile')
   vim.api.nvim_buf_set_option(bufnr, 'swapfile', false)
   vim.api.nvim_buf_set_option(bufnr, 'undolevels', -1)
-  vim.api.nvim_buf_set_option(bufnr, 'readonly', true)
+  vim.api.nvim_buf_set_option(bufnr, 'readonly', false)
   vim.api.nvim_buf_set_option(bufnr, 'modifiable', true)
 
   if original_bufnr and vim.api.nvim_buf_is_valid(original_bufnr) then

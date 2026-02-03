@@ -3,6 +3,15 @@ local utils = require('neoreplay.utils')
 
 local M = {}
 
+local function plugin_root()
+  local source = debug.getinfo(1, "S").source
+  if not source then return "." end
+  if source:sub(1, 1) == "@" then
+    source = source:sub(2)
+  end
+  return vim.fn.fnamemodify(source, ":h:h:h:h")
+end
+
 local function write_file(path, content)
   local f = io.open(path, 'w')
   if not f then return false end
@@ -23,6 +32,8 @@ function M.export(opts)
   local out_path = opts.filename or (base_dir .. '/neoreplay.cast')
   local json_path = opts.json_path or (base_dir .. '/asciinema_session.json')
   local speed = opts.speed or 20.0
+  local root = plugin_root()
+  local rtp = vim.fn.fnameescape(root)
 
   local data = vim.fn.json_encode(session)
   write_file(json_path, data)
@@ -33,7 +44,7 @@ if ! command -v asciinema >/dev/null 2>&1; then
   echo "asciinema not installed"
   exit 1
 fi
-asciinema rec --quiet --overwrite -c "nvim -u NONE -c 'set runtimepath+=.' -c 'lua require(\"neoreplay\").load_session(\"]] .. json_path .. [[\")' -c 'lua require(\"neoreplay\").play({ speed = ]] .. speed .. [[ })'" ]] .. out_path .. [[
+asciinema rec --quiet --overwrite -c "nvim -u NONE -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"]] .. json_path .. [[\")' -c 'lua require(\"neoreplay\").play({ speed = ]] .. speed .. [[ })'" ]] .. out_path .. [[
 ]]
 
   local script_path = opts.script or (base_dir .. '/neoreplay_asciinema.sh')
