@@ -8,6 +8,10 @@ local pending_annotations = {}
 
 local annotation_ns = vim.api.nvim_create_namespace('neoreplay_ui')
 
+local function escape_winbar(text)
+  return tostring(text):gsub("%%", "%%%%")
+end
+
 local function setup_replay_buffer(bufnr, original_bufnr)
   vim.api.nvim_buf_set_option(bufnr, 'bufhidden', 'wipe')
   vim.api.nvim_buf_set_option(bufnr, 'buftype', 'nofile')
@@ -56,7 +60,7 @@ function M.create_replay_window(original_bufnr)
     title_pos = 'center',
   })
 
-  vim.api.nvim_set_option_value('winbar', M.controls, { scope = 'local', win = winid })
+    vim.api.nvim_set_option_value('winbar', escape_winbar(M.controls), { scope = 'local', win = winid })
   return bufnr, winid
 end
 
@@ -94,15 +98,15 @@ end
 -- Immediate progress update (use sparingly)
 function M.set_progress(winid, progress)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
-  local text = string.format("%s | %d%%", M.controls, progress)
-  vim.api.nvim_set_option_value('winbar', text, { scope = 'local', win = winid })
+    local text = string.format("%s | %d%%", M.controls, progress)
+    vim.api.nvim_set_option_value('winbar', escape_winbar(text), { scope = 'local', win = winid })
 end
 
 -- Immediate annotation update (use sparingly)
 function M.set_annotation(winid, annotation)
   if not winid or not vim.api.nvim_win_is_valid(winid) then return end
-  local text = string.format("%s | %s", M.controls, annotation or "")
-  vim.api.nvim_set_option_value('winbar', text, { scope = 'local', win = winid })
+    local text = string.format("%s | %s", M.controls, annotation or "")
+    vim.api.nvim_set_option_value('winbar', escape_winbar(text), { scope = 'local', win = winid })
 end
 
 -- Debounced annotation update (preferred for high-frequency updates)
@@ -122,8 +126,8 @@ function M.set_annotation_debounced(winid, annotation, delay_ms)
   -- Set new timer
   debounce_timers[winid] = vim.defer_fn(function()
     if vim.api.nvim_win_is_valid(winid) then
-      local text = string.format("%s | %s", M.controls, pending_annotations[winid] or "")
-      vim.api.nvim_set_option_value('winbar', text, { scope = 'local', win = winid })
+        local text = string.format("%s | %s", M.controls, pending_annotations[winid] or "")
+        vim.api.nvim_set_option_value('winbar', escape_winbar(text), { scope = 'local', win = winid })
     end
     debounce_timers[winid] = nil
     pending_annotations[winid] = nil
