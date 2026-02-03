@@ -78,6 +78,13 @@ All exporters accept overrides (e.g. `filename=...`, `dir=...`, `json_path=...`,
 
 > **Note on FFmpeg Record**: The `:NeoReplayRecordFFmpeg` command captures your actual Neovim window live using `x11grab`. It requires `ffmpeg` and `xwininfo` (on Linux).
 
+> **Note on Asciinema Export**: `:NeoReplayExportAsciinema` generates a script that *records* a new asciinema cast. Run the script first, then play the resulting `.cast`:
+>
+> 1) `~/.neoreplay/neoreplay_asciinema.sh`
+> 2) `asciinema play ~/.neoreplay/neoreplay.cast`
+>
+> The script uses `set runtimepath+=.` which assumes you run it from the NeoReplay plugin directory. If you run it elsewhere, either `cd` into your plugin folder first or edit the script to append your actual NeoReplay install path to `runtimepath`.
+
 This gives you perfectly crisp, pixel-perfect clips without bloating your Neovim installation.
 
 ## Installation
