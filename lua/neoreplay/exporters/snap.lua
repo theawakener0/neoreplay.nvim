@@ -172,6 +172,49 @@ local function write_file(path, content)
   return true, nil
 end
 
+local function copy_file(src, dest)
+  local rf, rerr = io.open(src, "rb")
+  if not rf then
+    return false, string.format("Failed to open source '%s': %s", src, rerr or "unknown error")
+  end
+  local wf, werr = io.open(dest, "wb")
+  if not wf then
+    rf:close()
+    return false, string.format("Failed to open destination '%s': %s", dest, werr or "unknown error")
+  end
+  local ok, err = pcall(function()
+    wf:write(rf:read("*all"))
+    rf:close()
+    wf:close()
+  end)
+  if not ok then
+    return false, string.format("Failed to copy file: %s", err)
+  end
+  return true, nil
+end
+
+local function find_latest_frame(dir, format)
+  if vim.fn.isdirectory(dir) ~= 1 then
+    return nil
+  end
+  local files = vim.fn.readdir(dir)
+  if not files or #files == 0 then
+    return nil
+  end
+  local ext = "." .. format
+  local candidates = {}
+  for _, name in ipairs(files) do
+    if name:sub(-#ext) == ext then
+      table.insert(candidates, name)
+    end
+  end
+  if #candidates == 0 then
+    return nil
+  end
+  table.sort(candidates)
+  return dir .. "/" .. candidates[#candidates]
+end
+
 -- Cleanup temp directory
 local function cleanup(tmp_dir)
   vim.fn.delete(tmp_dir, "rf")
@@ -238,6 +281,8 @@ function M.export(lines, opts)
   
   local code_path = tmp_dir .. "/code" .. (opts.ext or "")
   local tape_path = tmp_dir .. "/snap.tape"
+  local frames_dir = tmp_dir .. "/frames"
+  vim.fn.mkdir(frames_dir, "p")
   
   -- Write lines to temp file
   local content = table.concat(lines, "\n")
@@ -257,7 +302,7 @@ function M.export(lines, opts)
   local nvim_cmd = init_path and ("nvim -u " .. vim.fn.shellescape(init_path)) or "nvim -u NONE"
   
   local tape = {
-    'Output "' .. output_path .. '"',
+    'Output "' .. frames_dir .. '"',
     'Set FontSize ' .. font_size,
     'Set Width ' .. width,
     'Set Height ' .. height,
@@ -280,7 +325,7 @@ function M.export(lines, opts)
   end
   
   -- Start progress indicator
-  start_progress("Rendering with VHS")
+  start_progress("Capturing code snapshot")
   
   -- Capture stderr for error reporting
   local stderr_output = {}
@@ -313,10 +358,20 @@ function M.export(lines, opts)
       end
       
       if vim.fn.filereadable(output_path) ~= 1 then
-        stop_progress()
-        cleanup(tmp_dir)
-        vim.notify("NeoReplay: VHS did not produce output", vim.log.levels.ERROR)
-        return
+        local latest_frame = find_latest_frame(frames_dir, format)
+        if not latest_frame then
+          stop_progress()
+          cleanup(tmp_dir)
+          vim.notify("NeoReplay: VHS did not produce any frames", vim.log.levels.ERROR)
+          return
+        end
+        local copy_ok, copy_err = copy_file(latest_frame, output_path)
+        if not copy_ok then
+          stop_progress()
+          cleanup(tmp_dir)
+          vim.notify("NeoReplay: Failed to save snapshot: " .. copy_err, vim.log.levels.ERROR)
+          return
+        end
       end
 
       stop_progress()
