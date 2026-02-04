@@ -42,4 +42,32 @@ function M.edit_type(before_text, after_text)
   return 'noop'
 end
 
+function M.get_timestamp_filename(extension)
+  return "snap_" .. os.date("%Y%m%d_%H%M%S") .. "." .. (extension or "png")
+end
+
+function M.ensure_dir(path)
+  vim.fn.mkdir(vim.fn.fnamemodify(path, ":p:h"), "p")
+end
+
+function M.copy_to_clipboard(path)
+  local cmd
+  local ext = vim.fn.fnamemodify(path, ":e"):lower()
+  local mime = "image/png"
+  if ext == "jpg" or ext == "jpeg" then
+    mime = "image/jpeg"
+  end
+
+  if M.detect_command("wl-copy") then
+    cmd = string.format("wl-copy -t %s < %s", mime, vim.fn.shellescape(path))
+  elseif M.detect_command("xclip") then
+    cmd = string.format("xclip -selection clipboard -t %s -i %s", mime, vim.fn.shellescape(path))
+  else
+    return false, "No clipboard tool found (wl-copy or xclip)"
+  end
+
+  vim.fn.system(cmd)
+  return true
+end
+
 return M

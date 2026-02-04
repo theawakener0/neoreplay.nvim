@@ -65,15 +65,59 @@ One minor detail: Neovim is a text editor, not a video encoder. To keep the plug
 
 All exporters accept overrides (e.g. `filename=...`, `dir=...`, `json_path=...`, `tape_path=...`).
 
-### Video/GIF Export Commands
+### Video/GIF Export & Snapshots
 
 | Command | Usage | Description |
 |---------|-------|-------------|
+| `:NeoReplaySnap` | `:NeoReplaySnap clipboard=true` | **Snapshot**: Capture visual selection as a PNG/JPG. |
 | `:NeoReplayExportGIF` | `:NeoReplayExportGIF speed=20` | Generate a high-quality GIF tape via VHS. |
 | `:NeoReplayExportMP4` | `:NeoReplayExportMP4 quality=90` | Generate an MP4 tape via VHS. |
 | `:NeoReplayRecordFFmpeg`| `:NeoReplayRecordFFmpeg` | **Wild Mode**: Direct screen capture via FFmpeg. |
 | `:NeoReplayExportFrames` | `:NeoReplayExportFrames dir=~/frames` | Export per-event JSON frames for external renderers. |
 | `:NeoReplayExportAsciinema` | `:NeoReplayExportAsciinema speed=20` | Generate an asciinema capture script. |
+
+## NeoReplaySnap: High-Quality Code Captures
+
+Transform your code into beautiful images directly from Neovim.
+
+- **Command**: `:NeoReplaySnap` (Works in Normal and Visual mode)
+- **Visual Mode**: Select the code lines you want and run `:NeoReplaySnap`.
+- **Fidelity**: Uses [VHS](https://github.com/charmbracelet/vhs) to render a headless Neovim frame loading your actual `$MYVIMRC`. This means your **Treesitter**, **theme**, **icons**, and **line numbers** are perfectly preserved.
+- **Requirements**: Only [VHS](https://github.com/charmbracelet/vhs). (FFmpeg is **not** required for snapshots.)
+- **Location**: Snapshots are saved to `~/.neoreplay/snaps/`.
+
+**Options**:
+- `format=png|jpg` (Default: `png`)
+- `font_size=16`
+- `clipboard=true` (Auto-copy to system clipboard using `xclip` or `wl-copy`)
+- `name="my_awesome_code"` (Custom filename)
+- `use_user_config=true|false` (Whether to load your `init.lua`, default `true`)
+
+### Configuration (setup)
+
+You can configure snapshots and other features in the `setup` function:
+
+```lua
+require('neoreplay').setup({
+  -- Default directory for snapshots
+  snap_dir = "~/Pictures/code_snaps", 
+  
+  -- Automatically copy snapshots to clipboard
+  snap_clipboard = true,
+
+  -- Export options
+  export = {
+    use_user_config = true, -- Load your nvim config for exports/snaps
+  },
+
+  -- Keymaps
+  keymaps = {
+    snap = "<leader>rs", -- Map in both Normal (buffer) and Visual (selection) mode
+  }
+})
+```
+
+*Example*: Select lines and run `:'<,'>NeoReplaySnap clipboard=true name="refactor_win"`
 
 *Configurable parameters for VHS:* `speed` (multiplier), `quality` (1-100), `filename`.
 
@@ -130,6 +174,7 @@ require("neoreplay").setup({
   ignore_whitespace = false,
   record_all_buffers = false,
   playback_speed = 20.0,
+  snap_clipboard = true,
   -- Map your custom colorscheme to a VHS theme
   vhs_mappings = {
     ["rose-pine"] = "Rose Pine",
@@ -142,6 +187,7 @@ require("neoreplay").setup({
     -- progress_bar = false,
   },
   keymaps = {
+    snap = "<leader>rs", -- Map in both Normal (buffer) and Visual (selection) mode
     start = "<leader>rs",
     stop = "<leader>rt",
     play = "<leader>rp",

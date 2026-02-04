@@ -6,6 +6,7 @@ local exporters = require('neoreplay.exporters')
 local vhs_exporter = require('neoreplay.exporters.vhs')
 local frames_exporter = require('neoreplay.exporters.frames')
 local asciinema_exporter = require('neoreplay.exporters.asciinema')
+local snap_exporter = require('neoreplay.exporters.snap')
 local vhs_themes = require('neoreplay.vhs_themes')
 local ui = require('neoreplay.ui')
 
@@ -21,6 +22,7 @@ function M.capabilities()
     asciinema = asciinema_exporter.available and asciinema_exporter.available() or false,
     frames = true,
     ffmpeg = vim.fn.executable('ffmpeg') == 1,
+    snap = snap_exporter.available and snap_exporter.available() or false,
   }
 end
 
@@ -95,6 +97,88 @@ function M.export_gif(opts)
   opts = opts or {}
   opts.format = "gif"
   exporters.export('vhs', opts)
+end
+
+function M.snap(opts, line1, line2)
+  if not snap_exporter.available() then
+    vim.notify("NeoReplay: Snap requires 'vhs' to be installed.", vim.log.levels.ERROR)
+    return
+  end
+  
+  opts = opts or {}
+  local bufnr = vim.api.nvim_get_current_buf()
+  
+  -- Validate buffer
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    vim.notify("NeoReplay: Invalid buffer", vim.log.levels.ERROR)
+    return
+  end
+  
+  local lines = vim.api.nvim_buf_get_lines(bufnr, line1 - 1, line2, false)
+  
+  -- Default to global config if not specified
+  if opts.clipboard == nil then
+    opts.clipboard = vim.g.neoreplay_snap_clipboard
+  end
+
+  -- Detect extension from buffer name or filetype
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local ext = vim.fn.fnamemodify(name, ":e")
+  
+  -- Fallback to filetype if no extension from name
+  if ext == "" then
+    local ft = vim.api.nvim_buf_get_option(bufnr, 'filetype')
+    if ft and ft ~= "" then
+      -- Map common filetypes to extensions
+      local ft_to_ext = {
+        lua = "lua",
+        python = "py",
+        javascript = "js",
+        typescript = "ts",
+        javascriptreact = "jsx",
+        typescriptreact = "tsx",
+        rust = "rs",
+        go = "go",
+        ruby = "rb",
+        vim = "vim",
+        sh = "sh",
+        bash = "sh",
+        zsh = "zsh",
+        fish = "fish",
+        c = "c",
+        cpp = "cpp",
+        cxx = "cpp",
+        h = "h",
+        hpp = "hpp",
+        java = "java",
+        kotlin = "kt",
+        scala = "scala",
+        swift = "swift",
+        php = "php",
+        html = "html",
+        css = "css",
+        scss = "scss",
+        sass = "sass",
+        less = "less",
+        json = "json",
+        yaml = "yaml",
+        yml = "yml",
+        toml = "toml",
+        markdown = "md",
+        xml = "xml",
+        sql = "sql",
+        dockerfile = "Dockerfile",
+        makefile = "Makefile",
+      }
+      ext = ft_to_ext[ft] or ft
+    end
+  end
+  
+  if ext ~= "" then
+    opts.ext = "." .. ext
+  end
+
+  snap_exporter.export(lines, opts)
 end
 
 function M.export_mp4(opts)
@@ -238,6 +322,9 @@ function M.setup(opts)
   -- Export options
   vim.g.neoreplay_vhs_theme = opts.vhs_theme
   vim.g.neoreplay_vhs_mappings = opts.vhs_mappings or {}
+  vim.g.neoreplay_snap_dir = opts.snap_dir
+  vim.g.neoreplay_snap_clipboard = opts.snap_clipboard
+
   local export_opts = opts.export or {}
   vim.g.neoreplay_export_use_user_config = export_opts.use_user_config or false
   vim.g.neoreplay_export_nvim_init = export_opts.nvim_init
@@ -278,6 +365,15 @@ function M.setup(opts)
     if maps.clear then vim.keymap.set('n', maps.clear, M.clear, { desc = "NeoReplay: Clear session" }) end
     if maps.export_gif then vim.keymap.set('n', maps.export_gif, M.export_gif, { desc = "NeoReplay: Export GIF" }) end
     if maps.export_mp4 then vim.keymap.set('n', maps.export_mp4, M.export_mp4, { desc = "NeoReplay: Export MP4" }) end
+    if maps.snap then 
+      vim.keymap.set('n', maps.snap, function() M.snap({}, 1, vim.api.nvim_buf_line_count(0)) end, { desc = "NeoReplay: Snap buffer" })
+      vim.keymap.set('v', maps.snap, function() 
+        local l1 = vim.fn.line("v")
+        local l2 = vim.fn.line(".")
+        if l1 > l2 then l1, l2 = l2, l1 end
+        M.snap({}, l1, l2)
+      end, { desc = "NeoReplay: Snap selection" })
+    end
     if maps.export_frames then vim.keymap.set('n', maps.export_frames, M.export_frames, { desc = "NeoReplay: Export Frames" }) end
     if maps.export_asciinema then vim.keymap.set('n', maps.export_asciinema, M.export_asciinema, { desc = "NeoReplay: Export Asciinema" }) end
     if maps.record_ffmpeg then vim.keymap.set('n', maps.record_ffmpeg, M.record_ffmpeg, { desc = "NeoReplay: Record with FFmpeg" }) end

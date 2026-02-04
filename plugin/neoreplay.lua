@@ -42,6 +42,10 @@ vim.api.nvim_create_user_command('NeoReplayExportMP4', function(opts)
   neoreplay.export_mp4(parse_args(opts.fargs))
 end, { nargs = '*' })
 
+vim.api.nvim_create_user_command('NeoReplaySnap', function(opts)
+  neoreplay.snap(parse_args(opts.fargs), opts.line1, opts.line2)
+end, { nargs = '*', range = true })
+
 vim.api.nvim_create_user_command('NeoReplayExportFrames', function(opts)
   neoreplay.export_frames(parse_args(opts.fargs))
 end, { nargs = '*' })
