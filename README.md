@@ -187,7 +187,7 @@ require("neoreplay").setup({
     -- progress_bar = false,
   },
   keymaps = {
-    snap = "<leader>rs", -- Map in both Normal (buffer) and Visual (selection) mode
+    snap = "<leader>rS", -- Map in both Normal (buffer) and Visual (selection) mode
     start = "<leader>rs",
     stop = "<leader>rt",
     play = "<leader>rp",
