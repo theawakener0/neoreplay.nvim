@@ -12,6 +12,7 @@ local progress_timer = nil
 local progress_spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local progress_index = 1
 local progress_message = ""
+local stop_progress
 
 local function start_progress(message)
   stop_progress()
@@ -24,7 +25,7 @@ local function start_progress(message)
   end))
 end
 
-local function stop_progress()
+stop_progress = function()
   if progress_timer then
     progress_timer:stop()
     progress_timer:close()
@@ -217,10 +218,18 @@ function M.export(lines, opts)
     return
   end
   
-  local format = opts.format or "png"
+  local format = (opts.format or "png"):lower()
+  if format == "jpeg" then format = "jpg" end
+  if format ~= "png" and format ~= "jpg" then
+    vim.notify("NeoReplay: Unsupported format for snap. Use png or jpg.", vim.log.levels.ERROR)
+    return
+  end
   local font_size = opts.font_size or 16
   local theme = detect_theme()
   local filename = opts.name or utils.get_timestamp_filename(format)
+  if filename and not filename:match("%.[%w]+$") then
+    filename = filename .. "." .. format
+  end
   local snap_dir = vim.g.neoreplay_snap_dir or vim.fn.expand("~/.neoreplay/snaps/")
   if not snap_dir:match("/$") then snap_dir = snap_dir .. "/" end
   
@@ -342,6 +351,7 @@ function M.export(lines, opts)
     active_jobs[vhs_job_id] = true
     setup_timeout(vhs_job_id, tmp_dir, "VHS")
   else
+    stop_progress()
     cleanup(tmp_dir)
     vim.notify("NeoReplay: Failed to start VHS", vim.log.levels.ERROR)
   end

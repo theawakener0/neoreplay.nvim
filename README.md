@@ -87,10 +87,10 @@ Transform your code into beautiful images directly from Neovim.
 - **Location**: Snapshots are saved to `~/.neoreplay/snaps/`.
 
 **Options**:
-- `format=png|jpg` (Default: `png`)
+- `format=png|jpg` (Default: `png`, `jpeg` is treated as `jpg`)
 - `font_size=16`
 - `clipboard=true` (Auto-copy to system clipboard using `xclip` or `wl-copy`)
-- `name="my_awesome_code"` (Custom filename)
+- `name="my_awesome_code"` (Custom filename, extension auto-added if missing)
 - `use_user_config=true|false` (Whether to load your `init.lua`, default `true`)
 
 ### Configuration (setup)
