@@ -24,7 +24,7 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 - **Command**: `:NeoReplayChronos`
 - **Flex Mode**: `:NeoReplayFlexChronos` (100x speed archeology)
 
-## GIF Placeholder
+## Example
 ![NeoReplay Demo](https://via.placeholder.com/800x450.gif?text=NeoReplay+Demo+Coming+Soon)
 
 ## Features
@@ -37,6 +37,7 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 - **Fidelity Guarantee**: The replay engine ensures the final state of the replay buffer perfectly matches the original session.
 - **Minimal UI**: Simple floating window with speed controls.
 - **Interactive Progress Bar**: Scrub, seek, and preview edits with mouse and keyboard while replaying.
+- **Fullscreen Replay**: Toggle fullscreen during playback, including multi-buffer scenes.
 
 ## Core Principles
 
@@ -118,6 +119,7 @@ NeoReplay works out of the box, but you can tune the experience:
 |--------|------|---------|-------------|
 | `export.use_user_config` | `boolean` | `false` | Load your user config during VHS/asciinema export (for Treesitter, plugins, etc). |
 | `export.nvim_init` | `string` | `nil` | Path to an explicit Neovim init file for export sessions. Overrides `use_user_config`. |
+| `export.fullscreen` | `boolean` | `true` | Run export replays in fullscreen mode. |
 | `export.ui_chrome` | `boolean` | `false` | Show replay chrome (border + control winbar) during export. |
 | `export.progress_bar` | `boolean` | `false` | Show the progress bar during export. |
 
@@ -135,6 +137,7 @@ require("neoreplay").setup({
   export = {
     use_user_config = true,
     -- nvim_init = "/absolute/path/to/init.lua",
+    -- fullscreen = true,
     -- ui_chrome = false,
     -- progress_bar = false,
   },
@@ -168,8 +171,11 @@ When the replay window is open, use these keys:
 - `=`: Speed up
 - `-`: Slow down
 - `q` / `Esc`: Close replay
+- `f`: Toggle fullscreen
 
 ### Progress Bar Controls
+
+The progress bar updates in real time with elapsed/total time, percentage, play/pause state, and the active buffer name.
 
 When the progress bar is visible:
 
