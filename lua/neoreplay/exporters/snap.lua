@@ -326,12 +326,24 @@ function M.export(lines, opts)
   
   -- Start progress indicator
   start_progress("Capturing code snapshot")
+  vim.notify("NeoReplay: Capturing code snapshot...", vim.log.levels.INFO)
   
   -- Capture stderr for error reporting
   local stderr_output = {}
+  local stdout_output = {}
   
   local vhs_job_id = vim.fn.jobstart({"vhs", tape_path}, {
+    stdout_buffered = true,
     stderr_buffered = true,
+    on_stdout = function(_, data)
+      if data then
+        for _, line in ipairs(data) do
+          if line and line ~= "" then
+            table.insert(stdout_output, line)
+          end
+        end
+      end
+    end,
     on_stderr = function(_, data)
       if data then
         for _, line in ipairs(data) do
@@ -342,51 +354,55 @@ function M.export(lines, opts)
       end
     end,
     on_exit = function(job_id, exit_code)
-      -- Clear timeout
-      if job_id then
-        active_jobs[job_id] = nil
-      end
-      
-      if exit_code ~= 0 then
+      vim.schedule(function()
+        -- Clear timeout
+        if job_id then
+          active_jobs[job_id] = nil
+        end
+
+        if exit_code ~= 0 then
+          stop_progress()
+          cleanup(tmp_dir)
+          local err_detail = table.concat(stderr_output, "\n")
+          local out_detail = table.concat(stdout_output, "\n")
+          local details = err_detail ~= "" and err_detail or out_detail
+          vim.notify(string.format("NeoReplay: VHS failed (exit %d). %s", 
+            exit_code, details ~= "" and "Error: " .. details or ""), 
+            vim.log.levels.ERROR)
+          return
+        end
+
+        if vim.fn.filereadable(output_path) ~= 1 then
+          local latest_frame = find_latest_frame(frames_dir, format)
+          if not latest_frame then
+            stop_progress()
+            cleanup(tmp_dir)
+            vim.notify("NeoReplay: VHS did not produce any frames", vim.log.levels.ERROR)
+            return
+          end
+          local copy_ok, copy_err = copy_file(latest_frame, output_path)
+          if not copy_ok then
+            stop_progress()
+            cleanup(tmp_dir)
+            vim.notify("NeoReplay: Failed to save snapshot: " .. copy_err, vim.log.levels.ERROR)
+            return
+          end
+        end
+
         stop_progress()
+        vim.notify("NeoReplay: Snapshot saved to " .. output_path, vim.log.levels.INFO)
+
+        if opts.clipboard then
+          local ok, err = utils.copy_to_clipboard(output_path)
+          if ok then
+            vim.notify("NeoReplay: Copied to clipboard.", vim.log.levels.INFO)
+          else
+            vim.notify("NeoReplay: Clipboard failed: " .. (err or "unknown"), vim.log.levels.ERROR)
+          end
+        end
+
         cleanup(tmp_dir)
-        local err_detail = table.concat(stderr_output, "\n")
-        vim.notify(string.format("NeoReplay: VHS failed (exit %d). %s", 
-          exit_code, err_detail ~= "" and "Error: " .. err_detail or ""), 
-          vim.log.levels.ERROR)
-        return
-      end
-      
-      if vim.fn.filereadable(output_path) ~= 1 then
-        local latest_frame = find_latest_frame(frames_dir, format)
-        if not latest_frame then
-          stop_progress()
-          cleanup(tmp_dir)
-          vim.notify("NeoReplay: VHS did not produce any frames", vim.log.levels.ERROR)
-          return
-        end
-        local copy_ok, copy_err = copy_file(latest_frame, output_path)
-        if not copy_ok then
-          stop_progress()
-          cleanup(tmp_dir)
-          vim.notify("NeoReplay: Failed to save snapshot: " .. copy_err, vim.log.levels.ERROR)
-          return
-        end
-      end
-
-      stop_progress()
-      vim.notify("NeoReplay: Snapshot saved to " .. output_path, vim.log.levels.INFO)
-
-      if opts.clipboard then
-        local ok, err = utils.copy_to_clipboard(output_path)
-        if ok then
-          vim.notify("NeoReplay: Copied to clipboard.", vim.log.levels.INFO)
-        else
-          vim.notify("NeoReplay: Clipboard failed: " .. (err or "unknown"), vim.log.levels.ERROR)
-        end
-      end
-
-      cleanup(tmp_dir)
+      end)
     end
   })
   
