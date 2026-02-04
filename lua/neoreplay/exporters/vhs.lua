@@ -76,6 +76,16 @@ function M.export(opts)
   local filename = opts.filename or ("neoreplay." .. format)
   local theme = detect_theme()
 
+  local fullscreen = opts.fullscreen
+  if fullscreen == nil then
+    fullscreen = vim.g.neoreplay_export_fullscreen
+  end
+  local ui_chrome = opts.ui_chrome
+  if ui_chrome == nil then
+    ui_chrome = vim.g.neoreplay_export_ui_chrome
+  end
+
+
   local base_dir = vim.fn.expand('~/.neoreplay')
   vim.fn.mkdir(base_dir, 'p')
   local json_path = opts.json_path or (base_dir .. '/vhs_session.json')
@@ -107,7 +117,7 @@ function M.export(opts)
     'Set Theme "' .. theme .. '"',
     format == "mp4" and 'Set Quality ' .. quality or '',
     'Hide',
-    "Type `" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"" .. json_path .. "\")' -c 'lua require(\"neoreplay\").play({ speed = " .. speed .. " })'`",
+    "Type `" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"" .. json_path .. "\")' -c 'lua require(\"neoreplay\").play({ speed = " .. speed .. ", fullscreen = " .. tostring(fullscreen) .. ", ui_chrome = " .. tostring(ui_chrome) .. " })'`",
     'Enter',
     'Sleep 1s',
     'Show',

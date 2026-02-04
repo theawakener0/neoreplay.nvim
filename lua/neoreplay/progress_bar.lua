@@ -67,6 +67,19 @@ local function calculate_time_from_events(event_index, events)
   return events[event_index].timestamp - events[1].timestamp
 end
 
+-- Normalize fullscreen option to boolean
+local function normalize_fullscreen(value)
+  if value == nil then return false end
+  if type(value) == "boolean" then return value end
+  if type(value) == "string" then
+    return value:lower() == "true" or value == "1"
+  end
+  if type(value) == "number" then
+    return value ~= 0
+  end
+  return false
+end
+
 -- Create progress bar window
 function M.create(opts)
   opts = opts or {}
@@ -76,13 +89,15 @@ function M.create(opts)
   state.current_time = 0
   state.total_time = opts.total_time or 0
   state.cached_buffer_states = {}
+  state.is_fullscreen = normalize_fullscreen(opts.fullscreen)
   
   -- Calculate dimensions
   local screen_width = vim.o.columns
   local screen_height = vim.o.lines
   state.width = math.floor(screen_width * CONFIG.width_percent)
   local bar_col = math.floor((screen_width - state.width) / 2)
-  local bar_row = screen_height - 3 
+  -- In fullscreen mode, position at bottom with less margin
+  local bar_row = state.is_fullscreen and (screen_height - 2) or (screen_height - 3) 
   
   -- Create buffer
   state.bufnr = vim.api.nvim_create_buf(false, true)

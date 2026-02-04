@@ -31,10 +31,21 @@ function M.export(opts)
     buffers[bufnr] = copy
   end
 
+  local fullscreen = opts.fullscreen
+  if fullscreen == nil then
+    fullscreen = vim.g.neoreplay_export_fullscreen
+  end
+  local ui_chrome = opts.ui_chrome
+  if ui_chrome == nil then
+    ui_chrome = vim.g.neoreplay_export_ui_chrome
+  end
+
   local meta = {
     format = 'frames',
     total_events = #session.events,
     buffers = session.buffers or {},
+    fullscreen = fullscreen,
+    ui_chrome = ui_chrome,
   }
   write_file(out_dir .. '/metadata.json', vim.fn.json_encode(meta))
 

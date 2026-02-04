@@ -110,7 +110,9 @@ function M.play(opts)
   -- Performance tuning from opts
   RENDER_BUDGET_MS = opts.render_budget_ms or RENDER_BUDGET_MS
   MAX_EVENTS_PER_TICK = opts.max_events_per_tick or MAX_EVENTS_PER_TICK
-  
+ 
+  ui.set_chrome_enabled(opts.ui_chrome ~= false)
+
   -- Create scene windows
   local bufs = {}
   local seen = {}
@@ -125,11 +127,11 @@ function M.play(opts)
 
   local focus_buf = opts.focus_bufnr or bufs[1]
   if #bufs > 1 then
-    target_buf_map, replay_win_map = ui.create_scene_windows(bufs, focus_buf)
+    target_buf_map, replay_win_map = ui.create_scene_windows(bufs, focus_buf, opts)
     target_bufnr = target_buf_map[focus_buf]
     replay_winid = replay_win_map[focus_buf]
   else
-    local bufnr, winid = ui.create_replay_window(bufs[1])
+    local bufnr, winid = ui.create_replay_window(bufs[1], opts)
     target_bufnr = bufnr
     replay_winid = winid
     target_buf_map = { [bufs[1]] = bufnr }
@@ -165,6 +167,7 @@ function M.play(opts)
     total_events = #playback_events,
     active_bufnr = focus_buf,
     total_time = total_time,
+    fullscreen = opts.fullscreen,
   })
 
   M.schedule_next()
@@ -377,6 +380,9 @@ function M.stop_playback()
   
   -- Destroy progress bar
   progress_bar.destroy()
+  
+  -- Cleanup UI state
+  ui.cleanup()
   
   replay_winid = nil
   target_bufnr = nil

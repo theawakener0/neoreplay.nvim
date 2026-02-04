@@ -241,6 +241,16 @@ function M.setup(opts)
   local export_opts = opts.export or {}
   vim.g.neoreplay_export_use_user_config = export_opts.use_user_config or false
   vim.g.neoreplay_export_nvim_init = export_opts.nvim_init
+  if export_opts.fullscreen == nil then
+    vim.g.neoreplay_export_fullscreen = true
+  else
+    vim.g.neoreplay_export_fullscreen = export_opts.fullscreen
+  end
+  if export_opts.ui_chrome == nil then
+    vim.g.neoreplay_export_ui_chrome = false
+  else
+    vim.g.neoreplay_export_ui_chrome = export_opts.ui_chrome
+  end
 
   -- Replay control keys
   local controls = opts.controls or {}
