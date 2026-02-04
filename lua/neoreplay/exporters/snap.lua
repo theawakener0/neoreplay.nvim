@@ -8,9 +8,6 @@ local active_jobs = {}
 local JOB_TIMEOUT_MS = 30000 -- 30 seconds timeout
 
 -- Progress tracking
-local progress_timer = nil
-local progress_spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
-local progress_index = 1
 local progress_message = ""
 local stop_progress
 
@@ -18,23 +15,12 @@ local function start_progress(message)
   stop_progress()
   progress_message = message or ""
   progress_index = 1
-  progress_timer = vim.loop.new_timer()
-  progress_timer:start(0, 120, vim.schedule_wrap(function()
-    vim.api.nvim_echo({ { string.format("NeoReplay: %s %s", progress_message, progress_spinner[progress_index]) } }, false, {})
-    progress_index = (progress_index % #progress_spinner) + 1
-  end))
+  progress_active = true
+  vim.notify("NeoReplay: " .. progress_message, vim.log.levels.INFO)
 end
 
 stop_progress = function()
-  if progress_timer then
-    progress_timer:stop()
-    progress_timer:close()
-    progress_timer = nil
-  end
-  if progress_message ~= "" then
-    vim.api.nvim_echo({ { "" } }, false, {})
-    progress_message = ""
-  end
+  progress_message = ""
 end
 
 local function plugin_root()
@@ -271,7 +257,7 @@ function M.export(lines, opts)
   local nvim_cmd = init_path and ("nvim -u " .. vim.fn.shellescape(init_path)) or "nvim -u NONE"
   
   local tape = {
-    'Output ' .. output_path,
+    'Output "' .. output_path .. '"',
     'Set FontSize ' .. font_size,
     'Set Width ' .. width,
     'Set Height ' .. height,
@@ -310,9 +296,11 @@ function M.export(lines, opts)
         end
       end
     end,
-    on_exit = function(_, exit_code)
+    on_exit = function(job_id, exit_code)
       -- Clear timeout
-      active_jobs[vhs_job_id] = nil
+      if job_id then
+        active_jobs[job_id] = nil
+      end
       
       if exit_code ~= 0 then
         stop_progress()
