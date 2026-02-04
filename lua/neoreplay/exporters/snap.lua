@@ -302,7 +302,7 @@ function M.export(lines, opts)
   local nvim_cmd = init_path and ("nvim -u " .. vim.fn.shellescape(init_path)) or "nvim -u NONE"
   
   local tape = {
-    'Output "' .. frames_dir .. '"',
+    'Output "' .. frames_dir .. '/"',
     'Set FontSize ' .. font_size,
     'Set Width ' .. width,
     'Set Height ' .. height,
