@@ -251,6 +251,11 @@ function M.setup(opts)
   else
     vim.g.neoreplay_export_ui_chrome = export_opts.ui_chrome
   end
+  if export_opts.progress_bar == nil then
+    vim.g.neoreplay_export_progress_bar = false
+  else
+    vim.g.neoreplay_export_progress_bar = export_opts.progress_bar
+  end
 
   -- Replay control keys
   local controls = opts.controls or {}

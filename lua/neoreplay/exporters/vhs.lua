@@ -84,6 +84,7 @@ function M.export(opts)
   if ui_chrome == nil then
     ui_chrome = vim.g.neoreplay_export_ui_chrome
   end
+  local progress_bar = false
 
 
   local base_dir = vim.fn.expand('~/.neoreplay')
@@ -117,7 +118,7 @@ function M.export(opts)
     'Set Theme "' .. theme .. '"',
     format == "mp4" and 'Set Quality ' .. quality or '',
     'Hide',
-    "Type `" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"" .. json_path .. "\")' -c 'lua require(\"neoreplay\").play({ speed = " .. speed .. ", fullscreen = " .. tostring(fullscreen) .. ", ui_chrome = " .. tostring(ui_chrome) .. " })'`",
+    "Type `" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"" .. json_path .. "\")' -c 'lua require(\"neoreplay\").play({ speed = " .. speed .. ", fullscreen = " .. tostring(fullscreen) .. ", ui_chrome = " .. tostring(ui_chrome) .. ", progress_bar = false })'`",
     'Enter',
     'Sleep 1s',
     'Show',

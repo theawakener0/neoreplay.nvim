@@ -58,6 +58,7 @@ function M.export(opts)
   if ui_chrome == nil then
     ui_chrome = vim.g.neoreplay_export_ui_chrome
   end
+  local progress_bar = false
   local root = plugin_root()
   local rtp = vim.fn.fnameescape(root)
   local init_path = resolve_init_path(opts)
@@ -72,7 +73,7 @@ if ! command -v asciinema >/dev/null 2>&1; then
   echo "asciinema not installed"
   exit 1
 fi
-asciinema rec --quiet --overwrite -c "" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"]] .. json_path .. [[\")' -c 'lua require(\"neoreplay\").play({ speed = ]] .. speed .. [[, fullscreen = ]] .. tostring(fullscreen) .. [[, ui_chrome = ]] .. tostring(ui_chrome) .. [[ })'" ]] .. out_path .. [[
+asciinema rec --quiet --overwrite -c "" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"]] .. json_path .. [[\")' -c 'lua require(\"neoreplay\").play({ speed = ]] .. speed .. [[, fullscreen = ]] .. tostring(fullscreen) .. [[, ui_chrome = ]] .. tostring(ui_chrome) .. [[, progress_bar = false })'" ]] .. out_path .. [[
 ]]
 
   local script_path = opts.script or (base_dir .. '/neoreplay_asciinema.sh')

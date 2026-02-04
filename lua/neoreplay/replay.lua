@@ -36,6 +36,16 @@ local total_frames_skipped = 0
 -- Pre-allocated tables for hot paths
 local text_cache = {}
 
+local function get_event_start(event)
+  if not event then return 0 end
+  return event.start_time or event.timestamp or 0
+end
+
+local function get_event_time(event)
+  if not event then return 0 end
+  return event.end_time or event.start_time or event.timestamp or 0
+end
+
 local function apply_event(event, skip_visual)
   if event.kind == 'segment' then
     if replay_winid and not skip_visual then
@@ -162,13 +172,19 @@ function M.play(opts)
     end
   end
 
-  -- Create progress bar
-  progress_bar.create({
-    total_events = #playback_events,
-    active_bufnr = focus_buf,
-    total_time = total_time,
-    fullscreen = opts.fullscreen,
-  })
+  -- Create progress bar (optional)
+  local show_progress = opts.progress_bar
+  if show_progress == nil then
+    show_progress = true
+  end
+  if show_progress then
+    progress_bar.create({
+      total_events = #playback_events,
+      active_bufnr = focus_buf,
+      total_time = total_time,
+      fullscreen = opts.fullscreen,
+    })
+  end
 
   M.schedule_next()
 end
@@ -222,13 +238,13 @@ function M.schedule_next()
       cursor_update_counter = 0
     end
 
-    -- Update progress bar every 10 events
-    if current_event_index % 10 == 0 then
+    -- Update progress bar every 5 events for smoother updates (was 10)
+    if current_event_index % 5 == 0 then
       local current_time = 0
       if playback_events[current_event_index] then
         local first_event = playback_events[1]
         local current_evt = playback_events[current_event_index]
-        current_time = (current_evt.timestamp or 0) - (first_event.timestamp or 0)
+        current_time = get_event_time(current_evt) - get_event_start(first_event)
       end
       progress_bar.update(current_event_index, #playback_events, current_time, nil)
     end
@@ -466,11 +482,11 @@ function M.seek_to_event(target_index)
   -- Update progress bar
   local current_time = 0
   if playback_events[current_event_index] and playback_events[1] then
-    current_time = playback_events[current_event_index].timestamp - playback_events[1].timestamp
+    current_time = get_event_time(playback_events[current_event_index]) - get_event_start(playback_events[1])
   end
   local total_time = 0
   if playback_events[#playback_events] and playback_events[1] then
-    total_time = playback_events[#playback_events].timestamp - playback_events[1].timestamp
+    total_time = get_event_time(playback_events[#playback_events]) - get_event_start(playback_events[1])
   end
   progress_bar.update(current_event_index, #playback_events, current_time, total_time)
 end

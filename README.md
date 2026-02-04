@@ -118,6 +118,8 @@ NeoReplay works out of the box, but you can tune the experience:
 |--------|------|---------|-------------|
 | `export.use_user_config` | `boolean` | `false` | Load your user config during VHS/asciinema export (for Treesitter, plugins, etc). |
 | `export.nvim_init` | `string` | `nil` | Path to an explicit Neovim init file for export sessions. Overrides `use_user_config`. |
+| `export.ui_chrome` | `boolean` | `false` | Show replay chrome (border + control winbar) during export. |
+| `export.progress_bar` | `boolean` | `false` | Show the progress bar during export. |
 
 ### Copy-Paste Config (Full)
 
@@ -133,6 +135,8 @@ require("neoreplay").setup({
   export = {
     use_user_config = true,
     -- nvim_init = "/absolute/path/to/init.lua",
+    -- ui_chrome = false,
+    -- progress_bar = false,
   },
   keymaps = {
     start = "<leader>rs",
