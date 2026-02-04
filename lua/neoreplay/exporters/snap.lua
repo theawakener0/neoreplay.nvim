@@ -193,26 +193,16 @@ local function copy_file(src, dest)
   return true, nil
 end
 
-local function find_latest_frame(dir, format)
-  if vim.fn.isdirectory(dir) ~= 1 then
-    return nil
+local function convert_png_to_jpg(src, dest)
+  if utils.detect_command('magick') then
+    vim.fn.system({ 'magick', src, dest })
+    return vim.v.shell_error == 0, "ImageMagick conversion failed"
   end
-  local files = vim.fn.readdir(dir)
-  if not files or #files == 0 then
-    return nil
+  if utils.detect_command('convert') then
+    vim.fn.system({ 'convert', src, dest })
+    return vim.v.shell_error == 0, "ImageMagick conversion failed"
   end
-  local ext = "." .. format
-  local candidates = {}
-  for _, name in ipairs(files) do
-    if name:sub(-#ext) == ext then
-      table.insert(candidates, name)
-    end
-  end
-  if #candidates == 0 then
-    return nil
-  end
-  table.sort(candidates)
-  return dir .. "/" .. candidates[#candidates]
+  return false, "ImageMagick not installed (magick/convert)"
 end
 
 -- Cleanup temp directory
@@ -281,8 +271,7 @@ function M.export(lines, opts)
   
   local code_path = tmp_dir .. "/code" .. (opts.ext or "")
   local tape_path = tmp_dir .. "/snap.tape"
-  local frames_dir = tmp_dir .. "/frames"
-  vim.fn.mkdir(frames_dir, "p")
+  local screenshot_path = tmp_dir .. "/snapshot.png"
   
   -- Write lines to temp file
   local content = table.concat(lines, "\n")
@@ -302,7 +291,6 @@ function M.export(lines, opts)
   local nvim_cmd = init_path and ("nvim -u " .. vim.fn.shellescape(init_path)) or "nvim -u NONE"
   
   local tape = {
-    'Output "' .. frames_dir .. '/"',
     'Set FontSize ' .. font_size,
     'Set Width ' .. width,
     'Set Height ' .. height,
@@ -313,7 +301,8 @@ function M.export(lines, opts)
     'Enter',
     'Sleep 500ms',
     'Show',
-    'Sleep 1s',
+    'Sleep 500ms',
+    'Screenshot "' .. screenshot_path .. '"',
   }
   
   -- Write tape file
@@ -372,15 +361,23 @@ function M.export(lines, opts)
           return
         end
 
-        if vim.fn.filereadable(output_path) ~= 1 then
-          local latest_frame = find_latest_frame(frames_dir, format)
-          if not latest_frame then
+        if vim.fn.filereadable(screenshot_path) ~= 1 then
+          stop_progress()
+          cleanup(tmp_dir)
+          vim.notify("NeoReplay: VHS did not produce a screenshot", vim.log.levels.ERROR)
+          return
+        end
+
+        if format == "jpg" then
+          local ok, err = convert_png_to_jpg(screenshot_path, output_path)
+          if not ok then
             stop_progress()
             cleanup(tmp_dir)
-            vim.notify("NeoReplay: VHS did not produce any frames", vim.log.levels.ERROR)
+            vim.notify("NeoReplay: JPG conversion failed: " .. err, vim.log.levels.ERROR)
             return
           end
-          local copy_ok, copy_err = copy_file(latest_frame, output_path)
+        else
+          local copy_ok, copy_err = copy_file(screenshot_path, output_path)
           if not copy_ok then
             stop_progress()
             cleanup(tmp_dir)
