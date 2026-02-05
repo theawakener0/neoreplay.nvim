@@ -291,6 +291,7 @@ function M.export(lines, opts)
   local nvim_cmd = init_path and ("nvim -u " .. vim.fn.shellescape(init_path)) or "nvim -u NONE"
   
   local tape = {
+    'Set TypingSpeed 0',
     'Set FontSize ' .. font_size,
     'Set Width ' .. width,
     'Set Height ' .. height,
@@ -301,7 +302,8 @@ function M.export(lines, opts)
     'Enter',
     'Sleep 500ms',
     'Show',
-    'Sleep 500ms',
+    'Wait+Screen /./',
+    'Sleep 1s',
     'Screenshot "' .. screenshot_path .. '"',
   }
   
