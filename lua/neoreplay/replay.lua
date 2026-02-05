@@ -129,9 +129,10 @@ function M.play(opts)
   local bufs = {}
   local seen = {}
   for _, ev in ipairs(playback_events) do
-    if ev.buf and not seen[ev.buf] then
-      table.insert(bufs, ev.buf)
-      seen[ev.buf] = true
+    local ev_buf = ev.bufnr or ev.buf
+    if ev_buf and not seen[ev_buf] then
+      table.insert(bufs, ev_buf)
+      seen[ev_buf] = true
     end
   end
 
