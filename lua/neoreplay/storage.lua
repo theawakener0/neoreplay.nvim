@@ -79,8 +79,10 @@ function M.add_event(event)
   
   table.insert(session.events, event)
   session.index.total_events = session.index.total_events + 1
-  if event.buf then
-    session.index.by_buf[event.buf] = (session.index.by_buf[event.buf] or 0) + 1
+  local new_index = session.index.total_events
+  local bufnr = event.bufnr or event.buf
+  if bufnr then
+    session.index.by_buf[bufnr] = (session.index.by_buf[bufnr] or 0) + 1
   end
   
   -- Periodic cache cleanup (every 500 events)
@@ -92,6 +94,7 @@ function M.add_event(event)
       M.clear_string_cache()
     end
   end
+  return new_index
 end
 
 function M.get_events()

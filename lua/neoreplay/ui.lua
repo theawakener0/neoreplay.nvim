@@ -175,10 +175,12 @@ end
 
 -- Setup resize handler
 local function setup_resize_handler()
+  -- Always clear first to prevent duplicates
   vim.api.nvim_clear_autocmds({ group = resize_augroup })
+  
   vim.api.nvim_create_autocmd('VimResized', {
     group = resize_augroup,
-    callback = handle_resize,
+    callback = vim.schedule_wrap(handle_resize), -- Non-blocking
     desc = 'NeoReplay: Handle window resize',
   })
 end

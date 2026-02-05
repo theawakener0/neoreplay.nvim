@@ -39,6 +39,11 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 - **Minimal UI**: Simple floating window with speed controls.
 - **Interactive Progress Bar**: Scrub, seek, and preview edits with mouse and keyboard while replaying.
 - **Fullscreen Replay**: Toggle fullscreen during playback, including multi-buffer scenes.
+- **Heat Map Overlay**: Visualize edit intensity across the buffer with a 10-level color gradient.
+- **Metrics Dashboard**: Real-time session analytics (LOC history, edit breakdown, terminal commands).
+- **Smart Bookmarks**: Automatic landmark generation for significant code changes (functions, large edits).
+- **Social Media Exports**: 9:16 (Shorts/TikTok) and 1:1 (Instagram) presets with mobile-optimized font sizes.
+- **Environment Themes**: Coordinated VHS and Neovim aesthetics for professional "presentation-ready" exports.
 
 ## Core Principles
 
@@ -68,6 +73,8 @@ flowchart TD
   S --> X[Exporters]
   X --> VHS[VHS/FFmpeg/Asciinema]
   S --> F[Frames/Snap]
+  S --> M[Metrics/Heatmap]
+  M --> UI
 ```
 
 ## Export Output Locations (Defaults)
@@ -93,6 +100,27 @@ All video and image exports are performed **automatically in the background**.
 | `:NeoReplayRecordFFmpeg`| `:NeoReplayRecordFFmpeg` | **Wild Mode**: Direct screen capture via FFmpeg. |
 | `:NeoReplayExportFrames` | `:NeoReplayExportFrames dir=~/frames` | Export per-event JSON frames for external renderers. |
 | `:NeoReplayExportAsciinema` | `:NeoReplayExportAsciinema speed=20` | Generate an asciinema capture script. |
+| `:NeoReplayExportShorts` | `:NeoReplayExportShorts out.mp4` | **Social**: 9:16 export for Shorts/TikTok. |
+| `:NeoReplayExportInstagram`| `:NeoReplayExportInstagram` | **Social**: Square (1:1) export for Instagram. |
+
+## Advanced Analysis & Visualization
+
+NeoReplay isn't just for watching; it's for understanding.
+
+### Metrics Dashboard
+Invoke `:NeoReplayDashboard` to see a performance summary of your session:
+- **LOC History**: Sparkline of your code growth.
+- **Edit Types**: Breakdown of insertions, deletions, and modifications.
+- **Command Log**: List of terminal commands run during the recording.
+
+### Heat Map
+Use `:NeoReplayHeatmapToggle` to visualize "hot" areas of your code. Lines with high edit frequency glow with higher intensity (Blue $\rightarrow$ Red), helping you identify complex sections that required multiple iterations.
+
+### Smart Bookmarks
+landmarks are automatically created when you add new functions or make significant changes.
+- **Manual Bookmark**: `:NeoReplayBookmark`
+- **Navigate**: `:NeoReplayBookmarkNext` and `:NeoReplayBookmarkPrev`
+- **Visuals**: Bookmarks appear as icons on the progress bar for easy seeking.
 
 ## NeoReplaySnap: High-Quality Code Captures
 

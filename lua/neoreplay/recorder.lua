@@ -1,5 +1,8 @@
 local storage = require('neoreplay.storage')
 local utils = require('neoreplay.utils')
+local bookmarks = require('neoreplay.bookmarks')
+local heatmap = require('neoreplay.heatmap')
+local metrics = require('neoreplay.metrics')
 local M = {}
 
 local buffer_cache = {}
@@ -97,9 +100,10 @@ local function flush_pending_changes(bufnr)
     local after_text = table.concat(change.after_lines or {}, "\n")
     local meta = utils.get_buffer_meta(bufnr)
     storage.set_buffer_meta(bufnr, meta)
-    storage.add_event({
+    local ev = {
       timestamp = change.timestamp,
-      buf = bufnr,
+      bufnr = bufnr,  -- Standardized field
+      buf = bufnr,    -- Legacy field
       bufname = meta.name,
       filetype = meta.filetype,
       before = before_text,
@@ -110,7 +114,13 @@ local function flush_pending_changes(bufnr)
       edit_type = utils.edit_type(before_text, after_text),
       lines_changed = math.abs((change.new_lastline or change.lastline) - change.lastline),
       kind = 'edit'
-    })
+    }
+    ev.after_lines = change.after_lines -- Temporary for smart_track
+    local idx = storage.add_event(ev)
+    bookmarks.smart_track(ev, idx)
+    heatmap.record(bufnr, change.lnum)
+    metrics.record_event(ev)
+    ev.after_lines = nil
   end
 end
 
@@ -248,6 +258,14 @@ function M.start(opts)
     recorded_buffers = targets,
     started_at = vim.loop.hrtime() / 1e9,
   })
+  
+  local initial_loc = 0
+  for _, bufnr in ipairs(targets) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      initial_loc = initial_loc + vim.api.nvim_buf_line_count(bufnr)
+    end
+  end
+  metrics.start_session(initial_loc)
 end
 
 function M.stop()
@@ -267,6 +285,7 @@ function M.stop()
       storage.set_final_state(bufnr, vim.api.nvim_buf_get_lines(bufnr, 0, -1, false))
     end
   end
+  metrics.end_session()
   storage.stop()
   
   -- Clear caches

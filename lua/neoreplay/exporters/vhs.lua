@@ -1,6 +1,8 @@
 local storage = require('neoreplay.storage')
 local utils = require('neoreplay.utils')
 local vhs_themes = require('neoreplay.vhs_themes')
+local themes = require('neoreplay.themes')
+local social = require('neoreplay.social')
 
 local M = {}
 
@@ -72,6 +74,11 @@ local function detect_theme()
 end
 
 function M.export(opts)
+  if vim.fn.executable('vhs') == 0 then
+    vim.notify("NeoReplay: 'vhs' command not found. Please install it to use this exporter.", vim.log.levels.ERROR)
+    return false
+  end
+
   local session = storage.get_session()
   if not session or #session.events == 0 then
     vim.notify("NeoReplay: No session recorded to export.", vim.log.levels.WARN)
@@ -79,10 +86,25 @@ function M.export(opts)
   end
 
   local format = opts.format or "gif"
-  local speed = opts.speed or 20.0
+  local theme_data = themes.get(opts.theme)
+  local speed = opts.speed or theme_data.vhs.playback_speed or 20.0
   local quality = opts.quality or 100
   local filename = opts.filename or ("neoreplay." .. format)
-  local theme = detect_theme()
+  local vhs_theme_name = detect_theme()
+  local padding = opts.padding or theme_data.vhs.padding or 20
+  local font_size = opts.font_size or theme_data.vhs.font_size or 18
+  
+  local width = 1200
+  local height = 800
+  
+  if opts.platform then
+    local p = social.get(opts.platform)
+    width = p.resolution.width
+    height = p.resolution.height
+    font_size = opts.font_size or p.optimal.font_size
+    padding = opts.padding or p.optimal.padding
+    speed = opts.speed or p.optimal.speed
+  end
 
   local fullscreen = opts.fullscreen
   if fullscreen == nil then
@@ -124,11 +146,11 @@ function M.export(opts)
   local tape = {
     meta,
     'Output "' .. output_path .. '"',
-    'Set FontSize 16',
-    'Set Width 1200',
-    'Set Height 800',
-    'Set Padding 20',
-    'Set Theme "' .. theme .. '"',
+    'Set FontSize ' .. font_size,
+    'Set Width ' .. width,
+    'Set Height ' .. height,
+    'Set Padding ' .. padding,
+    'Set Theme "' .. vhs_theme_name .. '"',
     format == "mp4" and 'Set Quality ' .. quality or '',
     'Hide',
     "Type `" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' -c 'lua require(\"neoreplay\").load_session(\"" .. json_path .. "\")' -c 'lua require(\"neoreplay\").play({ speed = " .. speed .. ", fullscreen = " .. tostring(fullscreen) .. ", ui_chrome = " .. tostring(ui_chrome) .. ", progress_bar = false })'`",

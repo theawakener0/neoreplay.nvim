@@ -2,6 +2,8 @@ local storage = require('neoreplay.storage')
 local ui = require('neoreplay.ui')
 local compressor = require('neoreplay.compressor')
 local progress_bar = require('neoreplay.progress_bar')
+local heatmap = require('neoreplay.heatmap')
+local metrics = require('neoreplay.metrics')
 local M = {}
 
 -- Performance configuration
@@ -15,6 +17,7 @@ local WINBAR_UPDATE_DEBOUNCE = 150  -- Debounce winbar updates (ms)
 local playback_timer = nil
 local playback_speed = 20.0
 local is_playing = false
+local heatmap_enabled = false
 local current_event_index = 1
 local playback_events = {}
 local target_bufnr = nil
@@ -54,7 +57,8 @@ local function apply_event(event, skip_visual)
     return
   end
 
-  local buf = target_buf_map[event.buf] or target_bufnr
+  local bufnr = event.bufnr or event.buf
+  local buf = target_buf_map[bufnr] or target_bufnr
   if not buf or not vim.api.nvim_buf_is_valid(buf) then return end
 
   -- Use set_text for single-line changes (faster than set_lines)
@@ -73,7 +77,10 @@ local function apply_event(event, skip_visual)
 
   -- Batch cursor updates - queue instead of immediate
   if not skip_visual then
-    pending_cursor_update = { buf = buf, lnum = event.lnum, win = replay_win_map[event.buf] or replay_winid }
+    pending_cursor_update = { buf = buf, lnum = event.lnum, win = replay_win_map[bufnr] or replay_winid }
+    heatmap.record(buf, event.lnum)
+    heatmap.render(buf)
+    metrics.record_event(event)
   end
 end
 
@@ -116,7 +123,17 @@ function M.play(opts)
   frame_skip_counter = 0
   total_frames_skipped = 0
   pending_cursor_update = nil
+  heatmap.clear()
   
+  local initial_loc = 0
+  for _, bufnr in ipairs(bufs) do
+    local state = storage.get_initial_state(bufnr)
+    if state then
+      initial_loc = initial_loc + #state
+    end
+  end
+  metrics.start_session(initial_loc)
+
   -- Performance tuning from opts
   RENDER_BUDGET_MS = opts.render_budget_ms or RENDER_BUDGET_MS
   MAX_EVENTS_PER_TICK = opts.max_events_per_tick or MAX_EVENTS_PER_TICK
@@ -489,6 +506,43 @@ function M.seek_to_event(target_index)
     total_time = get_event_time(playback_events[#playback_events]) - get_event_start(playback_events[1])
   end
   progress_bar.update(current_event_index, #playback_events, current_time, total_time)
+end
+
+function M.toggle_heatmap()
+  heatmap_enabled = not heatmap_enabled
+  if heatmap_enabled then
+    M.render_heatmap()
+  else
+    heatmap.clear()
+  end
+  vim.notify("NeoReplay: Heatmap " .. (heatmap_enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+end
+
+function M.get_current_index()
+  return current_event_index
+end
+
+function M.get_total_events()
+  return #playback_events
+end
+
+function M.render_heatmap()
+  if not heatmap_enabled then return end
+  
+  local session = storage.get_session()
+  local intensity_map = heatmap.calculate(session)
+  
+  -- Render for all relevant buffers in the replay
+  for original_bufnr, target_bufnr_internal in pairs(target_buf_map) do
+    if intensity_map[original_bufnr] then
+      heatmap.render(target_bufnr_internal, intensity_map[original_bufnr])
+    end
+  end
+  
+  -- Also render for the main target buffer if it's not in the map
+  if target_bufnr and intensity_map[storage.get_main_bufnr()] then
+    heatmap.render(target_bufnr, intensity_map[storage.get_main_bufnr()])
+  end
 end
 
 return M

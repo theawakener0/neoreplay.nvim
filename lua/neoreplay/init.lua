@@ -9,6 +9,8 @@ local asciinema_exporter = require('neoreplay.exporters.asciinema')
 local snap_exporter = require('neoreplay.exporters.snap')
 local vhs_themes = require('neoreplay.vhs_themes')
 local ui = require('neoreplay.ui')
+local dashboard = require('neoreplay.dashboard')
+local bookmarks = require('neoreplay.bookmarks')
 
 local M = {}
 
@@ -56,6 +58,58 @@ function M.play()
   replay.play()
 end
 
+function M.heatmap_toggle()
+  replay.toggle_heatmap()
+end
+
+function M.heatmap_clear()
+  heatmap.clear()
+end
+
+function M.dashboard()
+  dashboard.open()
+end
+
+function M.dashboard_toggle()
+  dashboard.toggle()
+end
+
+function M.bookmark(label)
+  local idx = replay.get_current_index()
+  bookmarks.add(label, { event_index = idx })
+end
+
+function M.bookmark_list()
+  bookmarks.list()
+end
+
+function M.bookmark_clear()
+  bookmarks.clear()
+end
+
+function M.bookmark_jump_next()
+  local current = replay.get_current_index()
+  local bks = bookmarks.get_all()
+  for _, bk in ipairs(bks) do
+    if bk.event_index > current then
+      replay.seek_to(bk.event_index / replay.get_total_events() * 100)
+      return
+    end
+  end
+end
+
+function M.bookmark_jump_prev()
+  local current = replay.get_current_index()
+  local bks = bookmarks.get_all()
+  for i = #bks, 1, -1 do
+    local bk = bks[i]
+    if bk.event_index < current then
+      replay.seek_to(bk.event_index / replay.get_total_events() * 100)
+      return
+    end
+  end
+end
+
 function M.clear()
   storage.start()
   storage.stop()
@@ -97,6 +151,32 @@ function M.export_gif(opts)
   opts = opts or {}
   opts.format = "gif"
   exporters.export('vhs', opts)
+end
+
+function M.export_social(opts)
+  opts = opts or {}
+  opts.format = opts.format or "mp4"
+  exporters.export('vhs', opts)
+end
+
+function M.export_shorts(filename)
+  M.export_social({ platform = "shorts", filename = filename or "shorts.mp4" })
+end
+
+function M.export_instagram(filename)
+  M.export_social({ platform = "reels", filename = filename or "insta.mp4" })
+end
+
+function M.export_reels(filename)
+  M.export_social({ platform = "reels", filename = filename or "reels.mp4" })
+end
+
+function M.export_tiktok(filename)
+  M.export_social({ platform = "tiktok", filename = filename or "tiktok.mp4" })
+end
+
+function M.export_twitter(filename)
+  M.export_social({ platform = "twitter", filename = filename or "twitter.mp4" })
 end
 
 function M.snap(opts, line1, line2)

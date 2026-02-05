@@ -1,4 +1,5 @@
 local storage = require('neoreplay.storage')
+local bookmarks = require('neoreplay.bookmarks')
 local M = {}
 
 local replay_mod = nil
@@ -370,9 +371,31 @@ function M.draw()
   local empty = math.max(0, bar_width - filled - 1)
 
   -- Build progress bar
-  local bar = "[" .. string.rep(CONFIG.style.filled_char, filled) 
-            .. CONFIG.style.position_marker 
-            .. string.rep(CONFIG.style.empty_char, empty) .. "]"
+  local bar_chars = {}
+  for i = 1, bar_width - 1 do
+    if i <= filled then
+      table.insert(bar_chars, CONFIG.style.filled_char)
+    else
+      table.insert(bar_chars, CONFIG.style.empty_char)
+    end
+  end
+  
+  -- Overlay bookmarks
+  local bks = bookmarks.get_all()
+  for _, bk in ipairs(bks) do
+    local bk_percent = bk.event_index / math.max(1, state.total_events)
+    local bk_pos = math.floor(bk_percent * (bar_width - 1)) + 1
+    if bk_pos >= 1 and bk_pos <= #bar_chars then
+      bar_chars[bk_pos] = "󰃁" -- Bookmark icon
+    end
+  end
+  
+  -- Overlay position marker (after bookmarks so it shows on top)
+  if filled + 1 <= #bar_chars then
+    bar_chars[filled + 1] = CONFIG.style.position_marker
+  end
+
+  local bar = "[" .. table.concat(bar_chars) .. "]"
   
   local line1 = string.format("[%s] %s %s %s %s", 
     time_str, bar, pct_str, play_icon, buf_name)
@@ -427,6 +450,14 @@ function M.apply_highlights()
     local marker_pos = bar_start + 1 + filled
     vim.api.nvim_buf_add_highlight(state.bufnr, ns_id, 'DiffChange', 0, marker_pos, marker_pos + 1)
     
+    -- Highlight bookmarks
+    local bks = bookmarks.get_all()
+    for _, bk in ipairs(bks) do
+      local bk_percent = bk.event_index / total
+      local bk_pos = bar_start + 1 + math.floor(bk_percent * (layout.bar_width - 1))
+      vim.api.nvim_buf_add_highlight(state.bufnr, ns_id, 'DiagnosticOk', 0, bk_pos, bk_pos + 1)
+    end
+
     -- Highlight percentage
     vim.api.nvim_buf_add_highlight(state.bufnr, ns_id, 'Normal', 0, bar_end + 1, bar_end + 5)
     

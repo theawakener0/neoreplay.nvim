@@ -25,7 +25,7 @@ function M.compress(events)
         kind = 'segment',
         label = event.label or 'Segment',
         timestamp = event.timestamp,
-        buf = event.buf,
+        bufnr = event.bufnr or event.buf,
       })
       goto continue
     end
@@ -58,7 +58,7 @@ function M.compress(events)
         after_lines = vim.split(event.after, "\n", true)
       end
       current_group = {
-        buf = event.buf,
+        bufnr = event.bufnr or event.buf,
         lnum = event.lnum,
         lastline = event.lastline,
         start_time = event.timestamp,
@@ -74,7 +74,7 @@ function M.compress(events)
       }
     else
       local time_diff = event.timestamp - current_group.end_time
-      local same_buffer = event.buf == current_group.buf
+      local same_buffer = (event.bufnr or event.buf) == current_group.bufnr
       local same_range = event.lnum == current_group.lnum and event.lastline == current_group.lastline
       
       -- Check structural boundary using pre-computed flag
@@ -98,7 +98,7 @@ function M.compress(events)
           after_lines = vim.split(event.after, "\n", true)
         end
         current_group = {
-          buf = event.buf,
+          bufnr = event.bufnr or event.buf,
           lnum = event.lnum,
           lastline = event.lastline,
           start_time = event.timestamp,
