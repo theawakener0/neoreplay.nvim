@@ -86,13 +86,17 @@ function M.export(opts)
   end
 
   local format = opts.format or "gif"
-  local theme_data = themes.get(opts.theme)
-  local speed = opts.speed or theme_data.vhs.playback_speed or 20.0
-  local quality = opts.quality or 100
+  local theme_data = themes.get(opts.theme) or {}
+  local vhs_theme = theme_data.vhs or {}
+  local visual = theme_data.visual or {}
+  local behavior = theme_data.behavior or {}
+  local export = theme_data.export or {}
+  local speed = opts.speed or vhs_theme.playback_speed or behavior.speed or 20.0
+  local quality = opts.quality or export.quality or 100
   local filename = opts.filename or ("neoreplay." .. format)
   local vhs_theme_name = detect_theme()
-  local padding = opts.padding or theme_data.vhs.padding or 20
-  local font_size = opts.font_size or theme_data.vhs.font_size or 18
+  local padding = opts.padding or vhs_theme.padding or visual.padding or 20
+  local font_size = opts.font_size or vhs_theme.font_size or visual.font_size or 18
   
   local width = 1200
   local height = 800

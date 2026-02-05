@@ -263,6 +263,20 @@ local function setup_replay_buffer(bufnr, original_bufnr)
   vim.keymap.set('n', pause, function() require('neoreplay.replay').toggle_pause() end, { buffer = bufnr })
   vim.keymap.set('n', faster, function() require('neoreplay.replay').speed_up() end, { buffer = bufnr })
   vim.keymap.set('n', slower, function() require('neoreplay.replay').speed_down() end, { buffer = bufnr })
+  vim.keymap.set('n', 'h', function() require('neoreplay.progress_bar').seek_relative(-5) end,
+    { buffer = bufnr, desc = "Seek backward 5s" })
+  vim.keymap.set('n', 'l', function() require('neoreplay.progress_bar').seek_relative(5) end,
+    { buffer = bufnr, desc = "Seek forward 5s" })
+  vim.keymap.set('n', 'H', function() require('neoreplay.progress_bar').seek_relative(-30) end,
+    { buffer = bufnr, desc = "Seek backward 30s" })
+  vim.keymap.set('n', 'L', function() require('neoreplay.progress_bar').seek_relative(30) end,
+    { buffer = bufnr, desc = "Seek forward 30s" })
+  vim.keymap.set('n', '0', function() require('neoreplay.progress_bar').seek_to_percent(0) end,
+    { buffer = bufnr, desc = "Seek to start" })
+  vim.keymap.set('n', 'G', function() require('neoreplay.progress_bar').seek_to_percent(100) end,
+    { buffer = bufnr, desc = "Seek to end" })
+  vim.keymap.set('n', '$', function() require('neoreplay.progress_bar').seek_to_percent(100) end,
+    { buffer = bufnr, desc = "Seek to end" })
   vim.keymap.set('n', 'f', function() M.toggle_fullscreen(vim.api.nvim_get_current_win()) end, { buffer = bufnr, desc = "Toggle fullscreen" })
 end
 
