@@ -11,7 +11,7 @@ M.data = {
     initial_loc = 0,
     current_loc = 0,
     peak_loc = 0,
-    loc_history = {},  -- For sparkline
+    loc_history = {},
     
     -- Edit metrics
     total_edits = 0,
@@ -25,7 +25,7 @@ M.data = {
 }
 
 local is_active = false
-local COMPUTATION_BUDGET_MS = 16  -- 60fps frame budget
+local COMPUTATION_BUDGET_MS = 16
 
 function M.start_session(initial_loc)
     M.data.start_time = vim.loop.now()

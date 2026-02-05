@@ -100,26 +100,30 @@ All video and image exports are performed **automatically in the background**.
 | `:NeoReplayRecordFFmpeg`| `:NeoReplayRecordFFmpeg` | **Wild Mode**: Direct screen capture via FFmpeg. |
 | `:NeoReplayExportFrames` | `:NeoReplayExportFrames dir=~/frames` | Export per-event JSON frames for external renderers. |
 | `:NeoReplayExportAsciinema` | `:NeoReplayExportAsciinema speed=20` | Generate an asciinema capture script. |
-| `:NeoReplayExportShorts` | `:NeoReplayExportShorts out.mp4` | **Social**: 9:16 export for Shorts/TikTok. |
-| `:NeoReplayExportInstagram`| `:NeoReplayExportInstagram` | **Social**: Square (1:1) export for Instagram. |
+| `:NeoReplayExportShorts` | `:NeoReplayExportShorts out.mp4` | **Shorts**: 9:16 vertical (1080x1920) for YouTube. |
+| `:NeoReplayExportReels` | `:NeoReplayExportReels` | **Reels**: 9:16 vertical (1080x1920) for Instagram. |
+| `:NeoReplayExportTikTok` | `:NeoReplayExportTikTok` | **TikTok**: 9:16 vertical (1080x1920) optimized. |
+| `:NeoReplayExportTwitter` | `:NeoReplayExportTwitter` | **Twitter/X**: 16:9 landscape (1920x1080) optimized. |
 
 ## Advanced Analysis & Visualization
 
 NeoReplay isn't just for watching; it's for understanding.
 
 ### Metrics Dashboard
-Invoke `:NeoReplayDashboard` to see a performance summary of your session:
+Invoke `:NeoReplayDashboardToggle` to see a performance summary of your session:
 - **LOC History**: Sparkline of your code growth.
 - **Edit Types**: Breakdown of insertions, deletions, and modifications.
-- **Command Log**: List of terminal commands run during the recording.
+- **Efficiency**: Edits per minute tracking.
 
 ### Heat Map
 Use `:NeoReplayHeatmapToggle` to visualize "hot" areas of your code. Lines with high edit frequency glow with higher intensity (Blue $\rightarrow$ Red), helping you identify complex sections that required multiple iterations.
+- **Clear**: `:NeoReplayHeatmapClear`
 
 ### Smart Bookmarks
-landmarks are automatically created when you add new functions or make significant changes.
-- **Manual Bookmark**: `:NeoReplayBookmark`
-- **Navigate**: `:NeoReplayBookmarkNext` and `:NeoReplayBookmarkPrev`
+Landmarks are automatically created when you add new functions or make significant changes.
+- **Manual Bookmark**: `:NeoReplayBookmark [label]`
+- **List/Select**: `:NeoReplayBookmarks`
+- **Clear All**: `:NeoReplayBookmarkClear`
 - **Visuals**: Bookmarks appear as icons on the progress bar for easy seeking.
 
 ## NeoReplaySnap: High-Quality Code Captures
@@ -153,18 +157,35 @@ require('neoreplay').setup({
   
   -- Automatically copy snapshots to clipboard
   snap_clipboard = true,
-
+  
   -- Snap sizing
   snap_fit_to_content = true,
 
+  -- Recording options
+  ignore_whitespace = false,
+  record_all_buffers = false,
+  
+  -- Playback options
+  playback_speed = 20.0,
+  
   -- Export options
+  vhs_theme = "Nord",
+  vhs_mappings = {
+    ["catppuccin-mocha"] = "Catppuccin Mocha",
+  },
+
   export = {
     use_user_config = true, -- Load your nvim config for exports/snaps
+    fullscreen = true,
+    ui_chrome = false,
   },
 
   -- Keymaps
   keymaps = {
-    snap = "<leader>rS", -- Map in both Normal (buffer) and Visual (selection) mode
+    snap = "<leader>rS",
+    start = "<leader>rs",
+    stop = "<leader>rt",
+    play = "<leader>rp",
   }
 })
 ```
