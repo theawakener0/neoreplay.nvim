@@ -26,6 +26,7 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 
 ## Example
 ![NeoReplay Demo](https://via.placeholder.com/800x450.gif?text=NeoReplay+Demo+Coming+Soon)
+![NeoReplay Code Capture](examples/snap_20260205_043811.png)
 
 ## Features
 
@@ -116,6 +117,7 @@ require('neoreplay').setup({
   }
 })
 ```
+
 
 *Example*: Select lines and run `:'<,'>NeoReplaySnap clipboard=true name="refactor_win"`
 
