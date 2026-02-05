@@ -2,7 +2,7 @@
 
 **Timelapse replay for Neovim.**
 
-Stop re-reading finished code. Replay how it was built, one semantic step at a time. This isn't a keystroke recorder; it's an edit-event engine that captures the evolution of your buffer.
+Stop re-reading finished code. Replay how it was built, one step at a time. This isn't a keystroke recorder; it's an edit-event engine that captures the evolution of your buffer.
 
 ## 10-Second Usage
 
@@ -30,11 +30,11 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 
 ## Features
 
-- **Semantic Recording**: Captures buffer diffs via `nvim_buf_attach`, ignoring cursor movements and noise.
-- **Intelligent Compression**: Merges identical line-range edits happening in short bursts into single semantic steps.
+- **Recording**: Captures buffer diffs via `nvim_buf_attach`, ignoring cursor movements and noise.
+- **Intelligent Compression**: Merges identical line-range edits happening in short bursts into single steps.
 - **Chronos (Undo Replay)**: Forgot to record? Excavate your buffer's undo tree to reconstruct history.
 - **Scene Tracks**: Multi-buffer capture and replay in a synchronized scene.
-- **Semantic Overlays**: During replay, labels like *insert / delete / replace* with cadence indicators.
+- **Overlays**: During replay, labels like *insert / delete / replace* with cadence indicators.
 - **Fidelity Guarantee**: The replay engine ensures the final state of the replay buffer perfectly matches the original session.
 - **Minimal UI**: Simple floating window with speed controls.
 - **Interactive Progress Bar**: Scrub, seek, and preview edits with mouse and keyboard while replaying.
@@ -51,9 +51,23 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 
 One minor detail: Neovim is a text editor, not a video encoder. To keep the plugin light and fast, we don't include a heavy MP4 encoder. Instead, we use a **scripting bridge**:
 
-1. **Recording**: We capture semantic buffer events.
+1. **Recording**: We capture buffer events.
 2. **Export**: `:NeoReplayExportGIF` or `:NeoReplayExportMP4` generates a `.tape` file for [VHS](https://github.com/charmbracelet/vhs).
 3. **Generation**: VHS opens a headless terminal, runs the replay, and saves it as a high-quality GIF or MP4.
+
+## Architecture (Abstract)
+
+```mermaid
+flowchart TD
+  U[User Edits] --> R[Recorder]
+  R -->|events| S[Storage]
+  S --> C[Compressor]
+  C --> E[Replay Engine]
+  E --> UI[UI/Windows]
+  S --> X[Exporters]
+  X --> VHS[VHS/FFmpeg/Asciinema]
+  S --> F[Frames/Snap]
+```
 
 ## Export Output Locations (Defaults)
 
@@ -93,6 +107,8 @@ Transform your code into beautiful images directly from Neovim.
 - `clipboard=true` (Auto-copy to system clipboard using `xclip` or `wl-copy`)
 - `name="my_awesome_code"` (Custom filename, extension auto-added if missing)
 - `use_user_config=true|false` (Whether to load your `init.lua`, default `true`)
+- `fit_to_content=true|false` (Default: `true`, size image to selection bounds)
+- `padding=0` (Override snapshot padding in pixels)
 
 ### Configuration (setup)
 
@@ -106,6 +122,9 @@ require('neoreplay').setup({
   -- Automatically copy snapshots to clipboard
   snap_clipboard = true,
 
+  -- Snap sizing
+  snap_fit_to_content = true,
+
   -- Export options
   export = {
     use_user_config = true, -- Load your nvim config for exports/snaps
@@ -113,7 +132,7 @@ require('neoreplay').setup({
 
   -- Keymaps
   keymaps = {
-    snap = "<leader>rs", -- Map in both Normal (buffer) and Visual (selection) mode
+    snap = "<leader>rS", -- Map in both Normal (buffer) and Visual (selection) mode
   }
 })
 ```
@@ -155,6 +174,7 @@ NeoReplay works out of the box, but you can tune the experience:
 | `playback_speed` | `number` | `20.0` | Default speed for replay and exports. |
 | `vhs_theme` | `string` | `nil` | Override the VHS theme (e.g., "Nord"). |
 | `vhs_mappings` | `table` | `{}` | Key-value pairs of Neovim colorschemes to VHS themes. |
+| `snap_fit_to_content` | `boolean` | `true` | Size snapshots to the selected buffer content. |
 | `export` | `table` | `{}` | Export-time options (see below). |
 | `keymaps` | `table` | `{}` | Optional keymaps for commands (`start`, `stop`, `play`, `chronos`). |
 | `controls` | `table` | `{}` | Override replay control keys (`quit`, `quit_alt`, `pause`, `faster`, `slower`). |

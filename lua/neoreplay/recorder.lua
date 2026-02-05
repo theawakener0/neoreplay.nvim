@@ -10,8 +10,58 @@ local pending_changes = {}
 local coalesce_timers = {}
 local COALESCE_DELAY_MS = 50  -- Batch edits within 50ms
 
+local function stop_and_close_timer(timer)
+  if not timer then return end
+  if type(timer) == "number" then
+    pcall(vim.fn.timer_stop, timer)
+    return
+  end
+  if timer.stop then
+    pcall(timer.stop, timer)
+  end
+  if timer.close then
+    pcall(timer.close, timer)
+  end
+end
+
 local function get_timestamp()
   return vim.loop.hrtime() / 1e9
+end
+
+local function lines_equal(a, b)
+  if a == b then return true end
+  if not a or not b or #a ~= #b then return false end
+  for i = 1, #a do
+    if a[i] ~= b[i] then
+      return false
+    end
+  end
+  return true
+end
+
+local function lines_equal_ignore_whitespace(a, b)
+  if not a or not b or #a ~= #b then return false end
+  for i = 1, #a do
+    local left = (a[i] or ""):gsub("%s+", "")
+    local right = (b[i] or ""):gsub("%s+", "")
+    if left ~= right then
+      return false
+    end
+  end
+  return true
+end
+
+local function start_coalesce_timer(bufnr)
+  local timer = coalesce_timers[bufnr]
+  if not timer then
+    timer = vim.loop.new_timer()
+    coalesce_timers[bufnr] = timer
+  end
+
+  timer:stop()
+  timer:start(COALESCE_DELAY_MS, 0, vim.schedule_wrap(function()
+    flush_pending_changes(bufnr)
+  end))
 end
 
 local function flush_pending_changes(bufnr)
@@ -33,8 +83,8 @@ local function flush_pending_changes(bufnr)
        next_change.lastline == current.lastline and
        (next_change.timestamp - current.timestamp) < 0.1 then
       -- Merge: just update the after state
-      current.after = next_change.after
       current.after_lines = next_change.after_lines
+      current.new_lastline = next_change.new_lastline
       current.end_time = next_change.timestamp
     else
       table.insert(merged, current)
@@ -45,6 +95,8 @@ local function flush_pending_changes(bufnr)
   
   -- Store merged events
   for _, change in ipairs(merged) do
+    local before_text = table.concat(change.before_lines or {}, "\n")
+    local after_text = table.concat(change.after_lines or {}, "\n")
     local meta = utils.get_buffer_meta(bufnr)
     storage.set_buffer_meta(bufnr, meta)
     storage.add_event({
@@ -52,12 +104,12 @@ local function flush_pending_changes(bufnr)
       buf = bufnr,
       bufname = meta.name,
       filetype = meta.filetype,
-      before = change.before,
-      after = change.after,
+      before = before_text,
+      after = after_text,
       lnum = change.lnum,
       lastline = change.lastline,
       new_lastline = change.new_lastline,
-      edit_type = utils.edit_type(change.before or '', change.after or ''),
+      edit_type = utils.edit_type(before_text, after_text),
       lines_changed = math.abs((change.new_lastline or change.lastline) - change.lastline),
       kind = 'edit'
     })
@@ -88,11 +140,8 @@ local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline
       table.insert(before_lines, cache[i] or "")
     end
   end
-  local before_text = table.concat(before_lines, "\n")
-
   -- Get the 'after' text from the actual buffer
   local after_lines = vim.api.nvim_buf_get_lines(bufnr, firstline, new_lastline, false)
-  local after_text = table.concat(after_lines, "\n")
 
   -- Update cache efficiently
   local old_count = lastline - firstline
@@ -123,11 +172,11 @@ local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline
   end
 
   -- Skip if no delta (sometimes happens with metadata changes)
-  if before_text == after_text then return end
+  if lines_equal(before_lines, after_lines) then return end
 
   -- Configurable: ignore whitespace-only changes
   if vim.g.neoreplay_ignore_whitespace then
-    if before_text:gsub("%s+", "") == after_text:gsub("%s+", "") then
+    if lines_equal_ignore_whitespace(before_lines, after_lines) then
       return
     end
   end
@@ -139,23 +188,14 @@ local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline
   
   table.insert(pending_changes[bufnr], {
     timestamp = get_timestamp(),
-    before = before_text,
-    after = after_text,
+    before_lines = before_lines,
     after_lines = after_lines,
     lnum = firstline + 1,
     lastline = lastline,
     new_lastline = new_lastline,
   })
-  
-  -- Reset and restart coalesce timer
-  if coalesce_timers[bufnr] then
-    pcall(vim.fn.timer_stop, coalesce_timers[bufnr])
-  end
-  
-  coalesce_timers[bufnr] = vim.defer_fn(function()
-    flush_pending_changes(bufnr)
-    coalesce_timers[bufnr] = nil
-  end, COALESCE_DELAY_MS)
+
+  start_coalesce_timer(bufnr)
 end
 
 local function attach_buffer(bufnr)
@@ -187,6 +227,8 @@ local function attach_buffer(bufnr)
     on_detach = function()
       -- Flush any pending changes before detaching
       flush_pending_changes(bufnr)
+      stop_and_close_timer(coalesce_timers[bufnr])
+      coalesce_timers[bufnr] = nil
       buffer_cache[bufnr] = nil
       attached_buffers[bufnr] = nil
     end
@@ -229,7 +271,8 @@ function M.stop()
   pending_changes = {}
   
   for bufnr, timer in pairs(coalesce_timers) do
-    pcall(vim.fn.timer_stop, timer)
+    stop_and_close_timer(timer)
+    coalesce_timers[bufnr] = nil
   end
   coalesce_timers = {}
   

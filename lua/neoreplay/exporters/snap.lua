@@ -10,17 +10,18 @@ local JOB_TIMEOUT_MS = 30000 -- 30 seconds timeout
 -- Progress tracking
 local progress_message = ""
 local stop_progress
+local progress_active = false
 
 local function start_progress(message)
   stop_progress()
   progress_message = message or ""
-  progress_index = 1
   progress_active = true
   vim.notify("NeoReplay: " .. progress_message, vim.log.levels.INFO)
 end
 
 stop_progress = function()
   progress_message = ""
+  progress_active = false
 end
 
 local function plugin_root()
@@ -84,39 +85,64 @@ local function detect_theme()
 end
 
 -- Calculate dimensions based on content
-local function calculate_dimensions(lines, font_size)
+local function line_display_width(line)
+  if not line then return 0 end
+  local ok, width = pcall(vim.fn.strdisplaywidth, line)
+  if ok and type(width) == "number" then
+    return width
+  end
+  return #line
+end
+
+local function calculate_dimensions(lines, font_size, opts)
+  opts = opts or {}
   font_size = font_size or 16
-  
+
+  local fit_to_content = opts.fit_to_content
+  if fit_to_content == nil then
+    fit_to_content = vim.g.neoreplay_snap_fit_to_content
+  end
+  if fit_to_content == nil then
+    fit_to_content = true
+  end
+
   local line_count = #lines
   if line_count == 0 then
     line_count = 1
   end
-  
-  -- Find longest line
+
+  -- Find longest line by display width
   local max_line_length = 0
   for _, line in ipairs(lines) do
-    -- Account for tab width (assume 4 spaces)
-    local expanded = line:gsub("\t", string.rep(" ", 4))
-    max_line_length = math.max(max_line_length, #expanded)
+    max_line_length = math.max(max_line_length, line_display_width(line))
   end
-  
+  if max_line_length == 0 then
+    max_line_length = 1
+  end
+
   -- Estimate character width (approximate based on font)
   local char_width = font_size * 0.6
-  local padding = 40
-  local min_width = 400
-  local max_width = 1920
-  local width = math.min(max_width, math.max(min_width, max_line_length * char_width + padding * 2))
-  
-  -- Calculate height with better formula
   local line_height = font_size * 1.5
-  local header_height = 40
-  local footer_height = 20
-  local height = line_count * line_height + header_height + footer_height + padding
-  local min_height = 200
-  local max_height = 1080
-  height = math.min(max_height, math.max(min_height, height))
-  
-  return math.floor(width), math.floor(height)
+
+  local padding = opts.padding
+  if padding == nil then
+    padding = fit_to_content and 0 or 20
+  end
+
+  local width = max_line_length * char_width + padding * 2
+  local height = line_count * line_height + padding * 2
+
+  if not fit_to_content then
+    local min_width = 400
+    local max_width = 1920
+    width = math.min(max_width, math.max(min_width, width))
+
+    local min_height = 200
+    local max_height = 1080
+    height = math.min(max_height, math.max(min_height, height))
+  end
+
+  return math.floor(width), math.floor(height), padding
 end
 
 -- Validate input lines
@@ -283,7 +309,7 @@ function M.export(lines, opts)
   end
   
   -- Calculate dynamic dimensions
-  local width, height = calculate_dimensions(lines, font_size)
+  local width, height, padding = calculate_dimensions(lines, font_size, opts)
   
   local root = plugin_root()
   local rtp = vim.fn.fnameescape(root)
@@ -295,7 +321,7 @@ function M.export(lines, opts)
     'Set FontSize ' .. font_size,
     'Set Width ' .. width,
     'Set Height ' .. height,
-    'Set Padding 20',
+    'Set Padding ' .. padding,
     'Set Theme "' .. theme .. '"',
     'Hide',
     "Type `" .. nvim_cmd .. " -c 'set runtimepath+=" .. rtp .. "' " .. vim.fn.shellescape(code_path) .. "`",
@@ -316,8 +342,7 @@ function M.export(lines, opts)
   end
   
   -- Start progress indicator
-  start_progress("Capturing code snapshot")
-  vim.notify("NeoReplay: Capturing code snapshot...", vim.log.levels.INFO)
+  start_progress("Starting snapshot capture...")
   
   -- Capture stderr for error reporting
   local stderr_output = {}
@@ -408,10 +433,11 @@ function M.export(lines, opts)
   if vhs_job_id and vhs_job_id > 0 then
     active_jobs[vhs_job_id] = true
     setup_timeout(vhs_job_id, tmp_dir, "VHS")
+    vim.notify("NeoReplay: Snapshot capture in progress...", vim.log.levels.INFO)
   else
     stop_progress()
     cleanup(tmp_dir)
-    vim.notify("NeoReplay: Failed to start VHS", vim.log.levels.ERROR)
+    vim.notify("NeoReplay: Failed to start snapshot capture. Is VHS installed?", vim.log.levels.ERROR)
   end
 end
 
