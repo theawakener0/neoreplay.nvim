@@ -47,13 +47,14 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 - **No keystroke visualization** → Semantic overlays and cadence instead of raw keys.
 - **No multi-buffer sync** → Scene tracks with focus buffer support.
 
-## How it Works (Why no Native GIF/Video?)
+## How it Works (Automatic Background Exports)
 
-One minor detail: Neovim is a text editor, not a video encoder. To keep the plugin light and fast, we don't include a heavy MP4 encoder. Instead, we use a **scripting bridge**:
+One minor detail: Neovim is a text editor, not a video encoder. To keep the plugin light and fast, we don't include a heavy MP4 encoder. Instead, we use an **automatic scripting bridge**:
 
 1. **Recording**: We capture buffer events.
-2. **Export**: `:NeoReplayExportGIF` or `:NeoReplayExportMP4` generates a `.tape` file for [VHS](https://github.com/charmbracelet/vhs).
-3. **Generation**: VHS opens a headless terminal, runs the replay, and saves it as a high-quality GIF or MP4.
+2. **Export**: `:NeoReplayExportGIF` or `:NeoReplayExportMP4` generates a unique temporary `.tape` file for [VHS](https://github.com/charmbracelet/vhs).
+3. **Background Generation**: NeoReplay automatically starts a background job to run VHS. It opens a headless terminal, runs the replay, and saves it as a high-quality GIF or MP4.
+4. **Notification**: You'll receive a notification when the export starts and another when it's finished, letting you continue coding without manual command-line intervention.
 
 ## Architecture (Abstract)
 
@@ -80,13 +81,15 @@ flowchart TD
 
 All exporters accept overrides (e.g. `filename=...`, `dir=...`, `json_path=...`, `tape_path=...`).
 
-### Video/GIF Export & Snapshots
+### Video/GIF Export & Snapshots (Automatic)
+
+All video and image exports are performed **automatically in the background**.
 
 | Command | Usage | Description |
 |---------|-------|-------------|
-| `:NeoReplaySnap` | `:NeoReplaySnap clipboard=true` | **Snapshot**: Capture visual selection as a PNG/JPG. |
-| `:NeoReplayExportGIF` | `:NeoReplayExportGIF speed=20` | Generate a high-quality GIF tape via VHS. |
-| `:NeoReplayExportMP4` | `:NeoReplayExportMP4 quality=90` | Generate an MP4 tape via VHS. |
+| `:NeoReplaySnap` | `:NeoReplaySnap` | **Snapshot**: Capture selection as a PNG/JPG. Copies to system clipboard by default. |
+| `:NeoReplayExportGIF` | `:NeoReplayExportGIF speed=20` | Automatically generate a GIF via VHS in the background. |
+| `:NeoReplayExportMP4` | `:NeoReplayExportMP4 quality=90` | Automatically generate an MP4 via VHS in the background. |
 | `:NeoReplayRecordFFmpeg`| `:NeoReplayRecordFFmpeg` | **Wild Mode**: Direct screen capture via FFmpeg. |
 | `:NeoReplayExportFrames` | `:NeoReplayExportFrames dir=~/frames` | Export per-event JSON frames for external renderers. |
 | `:NeoReplayExportAsciinema` | `:NeoReplayExportAsciinema speed=20` | Generate an asciinema capture script. |
@@ -98,6 +101,7 @@ Transform your code into beautiful images directly from Neovim.
 - **Command**: `:NeoReplaySnap` (Works in Normal and Visual mode)
 - **Visual Mode**: Select the code lines you want and run `:NeoReplaySnap`.
 - **Fidelity**: Uses [VHS](https://github.com/charmbracelet/vhs) to render a headless Neovim frame loading your actual `$MYVIMRC`. This means your **Treesitter**, **theme**, **icons**, and **line numbers** are perfectly preserved.
+- **Clipboard Integration**: Once generated, the image is automatically copied to your system clipboard (requires `wl-copy` or `xclip`). Use `snap_clipboard = false` to disable.
 - **Requirements**: Only [VHS](https://github.com/charmbracelet/vhs). (FFmpeg is **not** required for snapshots.)
 - **Location**: Snapshots are saved to `~/.neoreplay/snaps/`.
 

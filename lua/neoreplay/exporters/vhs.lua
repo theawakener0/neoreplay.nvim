@@ -4,6 +4,14 @@ local vhs_themes = require('neoreplay.vhs_themes')
 
 local M = {}
 
+local active_jobs = {}
+local JOB_TIMEOUT_MS = 600000 -- 10 minutes for video export
+
+local function cleanup(json_path, tape_path)
+  if json_path then os.remove(json_path) end
+  if tape_path then os.remove(tape_path) end
+end
+
 local function plugin_root()
   local source = debug.getinfo(1, "S").source
   if not source then return "." end
@@ -89,8 +97,13 @@ function M.export(opts)
 
   local base_dir = vim.fn.expand('~/.neoreplay')
   vim.fn.mkdir(base_dir, 'p')
-  local json_path = opts.json_path or (base_dir .. '/vhs_session.json')
-  local tape_path = opts.tape_path or (base_dir .. '/neoreplay.tape')
+  
+  -- Create a unique ID for this export to avoid collisions
+  local export_id = os.time() .. "_" .. math.random(1000, 9999)
+  local json_path = opts.json_path or (base_dir .. '/session_' .. export_id .. '.json')
+  local tape_path = opts.tape_path or (base_dir .. '/tape_' .. export_id .. '.tape')
+  local output_path = base_dir .. '/' .. filename
+  
   local root = plugin_root()
   local rtp = vim.fn.fnameescape(root)
   local init_path = resolve_init_path(opts)
@@ -110,7 +123,7 @@ function M.export(opts)
 
   local tape = {
     meta,
-    'Output ' .. filename,
+    'Output "' .. output_path .. '"',
     'Set FontSize 16',
     'Set Width 1200',
     'Set Height 800',
@@ -128,10 +141,58 @@ function M.export(opts)
   }
 
   local tf = io.open(tape_path, "w")
-  if tf then
-    tf:write(table.concat(tape, "\n"))
-    tf:close()
-    vim.notify(string.format("NeoReplay: Tape for %s generated at %s. (Speed: %.1fx). Run `vhs < %s`", format:upper(), tape_path, speed, tape_path), vim.log.levels.INFO)
+  if not tf then
+    vim.notify("NeoReplay: Failed to create tape file.", vim.log.levels.ERROR)
+    cleanup(json_path, nil)
+    return false
+  end
+  tf:write(table.concat(tape, "\n"))
+  tf:close()
+
+  vim.notify(string.format("NeoReplay: Starting %s export (Speed: %.1fx)...", format:upper(), speed), vim.log.levels.INFO)
+
+  local stderr_output = {}
+  local job_id = vim.fn.jobstart({"vhs", tape_path}, {
+    stderr_buffered = true,
+    on_stderr = function(_, data)
+      if data then
+        for _, line in ipairs(data) do
+          if line and line ~= "" then
+            table.insert(stderr_output, line)
+          end
+        end
+      end
+    end,
+    on_exit = function(id, exit_code)
+      active_jobs[id] = nil
+      vim.schedule(function()
+        if exit_code == 0 then
+          vim.notify("NeoReplay: Export complete: " .. output_path, vim.log.levels.INFO)
+        else
+          local err = table.concat(stderr_output, "\n")
+          vim.notify(string.format("NeoReplay: VHS export failed (exit %d). %s", exit_code, err), vim.log.levels.ERROR)
+        end
+        cleanup(json_path, tape_path)
+      end)
+    end
+  })
+
+  if job_id > 0 then
+    active_jobs[job_id] = true
+    -- Setup timeout
+    local timer = vim.loop.new_timer()
+    timer:start(JOB_TIMEOUT_MS, 0, vim.schedule_wrap(function()
+      if active_jobs[job_id] then
+        vim.fn.jobstop(job_id)
+        active_jobs[job_id] = nil
+        cleanup(json_path, tape_path)
+        vim.notify("NeoReplay: VHS export timed out.", vim.log.levels.ERROR)
+      end
+      timer:close()
+    end))
+  else
+    vim.notify("NeoReplay: Failed to start VHS job. Is 'vhs' installed?", vim.log.levels.ERROR)
+    cleanup(json_path, tape_path)
   end
 
   return true

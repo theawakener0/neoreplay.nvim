@@ -62,7 +62,23 @@ assert(exported_opts.clipboard == true, "Clipboard opt should be passed")
 export_called = false
 notifications = {}
 
--- Test Case 3: Empty lines should fail gracefully
+-- Test Case 3: Default clipboard should be true
+neoreplay.snap({}, 1, 4)
+assert(exported_opts.clipboard == true, "Clipboard should be true by default")
+
+-- Reset
+export_called = false
+notifications = {}
+
+-- Test Case 4: Explicitly disable clipboard
+neoreplay.snap({ clipboard = false }, 1, 4)
+assert(exported_opts.clipboard == false, "Clipboard should be disabled when requested")
+
+-- Reset
+export_called = false
+notifications = {}
+
+-- Test Case 5: Empty lines should fail gracefully
 snap_exporter.export = function(lines, opts)
   -- Simulate the validation logic from the real export function
   if not lines or #lines == 0 then

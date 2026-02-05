@@ -5,10 +5,9 @@ local M = {}
 local buffer_cache = {}
 local attached_buffers = {}
 
--- Change coalescing: batch rapid edits
 local pending_changes = {}
 local coalesce_timers = {}
-local COALESCE_DELAY_MS = 50  -- Batch edits within 50ms
+local COALESCE_DELAY_MS = 50
 
 local function stop_and_close_timer(timer)
   if not timer then return end
@@ -82,7 +81,6 @@ local function flush_pending_changes(bufnr)
     if next_change.lnum == current.lnum and 
        next_change.lastline == current.lastline and
        (next_change.timestamp - current.timestamp) < 0.1 then
-      -- Merge: just update the after state
       current.after_lines = next_change.after_lines
       current.new_lastline = next_change.new_lastline
       current.end_time = next_change.timestamp
@@ -119,18 +117,16 @@ end
 local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline, byte_count)
   if not storage.is_active() then 
     attached_buffers[bufnr] = nil
-    return true -- Detach the handler
+    return true
   end
   
   local cache = buffer_cache[bufnr]
   if not cache then return end
 
-  -- Get the 'before' text from our cache
   local before_lines = {}
   local before_start = firstline + 1
   local before_end = lastline
   
-  -- Optimize: use direct indexing for small ranges
   if before_end - before_start < 10 then
     for i = before_start, before_end do
       before_lines[i - before_start + 1] = cache[i] or ""
@@ -140,24 +136,19 @@ local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline
       table.insert(before_lines, cache[i] or "")
     end
   end
-  -- Get the 'after' text from the actual buffer
   local after_lines = vim.api.nvim_buf_get_lines(bufnr, firstline, new_lastline, false)
 
-  -- Update cache efficiently
   local old_count = lastline - firstline
   local new_count = #after_lines
   local diff = new_count - old_count
   
   if diff ~= 0 then
-    -- Pre-calculate new size and use table.move
     local cache_size = #cache
     if diff > 0 then
-      -- Growing: move existing lines to make room
       for i = cache_size, lastline + 1, -1 do
         cache[i + diff] = cache[i]
       end
     else
-      -- Shrinking: compact the table
       table.move(cache, lastline + 1, cache_size, firstline + new_count + 1)
       -- Clear old entries
       for i = cache_size + diff + 1, cache_size do
@@ -166,15 +157,12 @@ local function on_lines(_, bufnr, changedtick, firstline, lastline, new_lastline
     end
   end
   
-  -- Update cached lines
   for i = 1, #after_lines do
     cache[firstline + i] = after_lines[i]
   end
 
-  -- Skip if no delta (sometimes happens with metadata changes)
   if lines_equal(before_lines, after_lines) then return end
 
-  -- Configurable: ignore whitespace-only changes
   if vim.g.neoreplay_ignore_whitespace then
     if lines_equal_ignore_whitespace(before_lines, after_lines) then
       return
@@ -225,7 +213,6 @@ local function attach_buffer(bufnr)
   vim.api.nvim_buf_attach(bufnr, false, {
     on_lines = on_lines,
     on_detach = function()
-      -- Flush any pending changes before detaching
       flush_pending_changes(bufnr)
       stop_and_close_timer(coalesce_timers[bufnr])
       coalesce_timers[bufnr] = nil
@@ -264,7 +251,6 @@ function M.start(opts)
 end
 
 function M.stop()
-  -- Flush all pending changes
   for bufnr, _ in pairs(pending_changes) do
     flush_pending_changes(bufnr)
   end

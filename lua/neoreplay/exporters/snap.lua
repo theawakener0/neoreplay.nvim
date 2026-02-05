@@ -5,12 +5,16 @@ local M = {}
 
 -- Active jobs tracking for timeout management
 local active_jobs = {}
-local JOB_TIMEOUT_MS = 30000 -- 30 seconds timeout
+local JOB_TIMEOUT_MS = 30000
 
 -- Progress tracking
 local progress_message = ""
-local stop_progress
 local progress_active = false
+
+local function stop_progress()
+  progress_message = ""
+  progress_active = false
+end
 
 local function start_progress(message)
   stop_progress()
@@ -19,10 +23,6 @@ local function start_progress(message)
   vim.notify("NeoReplay: " .. progress_message, vim.log.levels.INFO)
 end
 
-stop_progress = function()
-  progress_message = ""
-  progress_active = false
-end
 
 local function plugin_root()
   local source = debug.getinfo(1, "S").source
@@ -76,8 +76,7 @@ local function detect_theme()
   -- Warn user if theme not found
   if not theme and current_colorscheme ~= "" then
     vim.notify(string.format("NeoReplay: Theme '%s' not mapped, using default. " ..
-      "Add to neoreplay_vhs_mappings for custom themes.", current_colorscheme), 
-      vim.log.levels.WARN)
+      "Add to neoreplay_vhs_mappings for custom themes.", current_colorscheme), vim.log.levels.WARN)
   end
   
   theme = theme or "Catppuccin Mocha"
@@ -111,7 +110,6 @@ local function calculate_dimensions(lines, font_size, opts)
     line_count = 1
   end
 
-  -- Find longest line by display width
   local max_line_length = 0
   for _, line in ipairs(lines) do
     max_line_length = math.max(max_line_length, line_display_width(line))
@@ -120,7 +118,6 @@ local function calculate_dimensions(lines, font_size, opts)
     max_line_length = 1
   end
 
-  -- Estimate character width (approximate based on font)
   local char_width = font_size * 0.6
   local line_height = font_size * 1.5
 
@@ -145,7 +142,6 @@ local function calculate_dimensions(lines, font_size, opts)
   return math.floor(width), math.floor(height), padding
 end
 
--- Validate input lines
 local function validate_lines(lines)
   if not lines then
     return false, "No lines provided"
@@ -157,7 +153,6 @@ local function validate_lines(lines)
     return false, "No content to snapshot (empty selection)"
   end
   
-  -- Check for file size limit (1000 lines)
   local MAX_LINES = 1000
   if #lines > MAX_LINES then
     return false, string.format("Content too large (%d lines, max %d). " ..
@@ -179,7 +174,6 @@ local function validate_lines(lines)
   return true, nil
 end
 
--- Write file with proper error handling
 local function write_file(path, content)
   local f, err = io.open(path, "w")
   if not f then
@@ -231,7 +225,6 @@ local function convert_png_to_jpg(src, dest)
   return false, "ImageMagick not installed (magick/convert)"
 end
 
--- Cleanup temp directory
 local function cleanup(tmp_dir)
   vim.fn.delete(tmp_dir, "rf")
 end

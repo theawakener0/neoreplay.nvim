@@ -120,6 +120,11 @@ function M.snap(opts, line1, line2)
   if opts.clipboard == nil then
     opts.clipboard = vim.g.neoreplay_snap_clipboard
   end
+  
+  -- Ensure it defaults to true if still nil (e.g., if setup wasn't called)
+  if opts.clipboard == nil then
+    opts.clipboard = true
+  end
 
   -- Detect extension from buffer name or filetype
   local name = vim.api.nvim_buf_get_name(bufnr)
@@ -323,7 +328,11 @@ function M.setup(opts)
   vim.g.neoreplay_vhs_theme = opts.vhs_theme
   vim.g.neoreplay_vhs_mappings = opts.vhs_mappings or {}
   vim.g.neoreplay_snap_dir = opts.snap_dir
-  vim.g.neoreplay_snap_clipboard = opts.snap_clipboard
+  if opts.snap_clipboard == nil then
+    vim.g.neoreplay_snap_clipboard = true
+  else
+    vim.g.neoreplay_snap_clipboard = opts.snap_clipboard
+  end
 
   local export_opts = opts.export or {}
   vim.g.neoreplay_export_use_user_config = export_opts.use_user_config or false
