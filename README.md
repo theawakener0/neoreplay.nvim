@@ -25,7 +25,6 @@ Forgot to start NeoReplay? No problem. **Chronos mode** excavates your Neovim un
 - **Flex Mode**: `:NeoReplayFlexChronos` (100x speed archeology)
 
 ## Example
-![NeoReplay Demo](https://via.placeholder.com/800x450.gif?text=NeoReplay+Demo+Coming+Soon)
 ![NeoReplay Code Capture](examples/snap_20260205_043811.png)
 
 ## Features
