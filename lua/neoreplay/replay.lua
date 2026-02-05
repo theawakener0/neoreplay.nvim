@@ -108,7 +108,7 @@ function M.play(opts)
   on_finish_callback = opts.on_finish
   
   local session = storage.get_session()
-  local events = session.events
+  local events = session.events or {}
   if #events == 0 then
     vim.notify("NeoReplay: No events to replay. Did you start recording?", vim.log.levels.WARN)
     return
@@ -124,7 +124,17 @@ function M.play(opts)
   total_frames_skipped = 0
   pending_cursor_update = nil
   heatmap.clear()
-  
+
+  -- Create scene windows
+  local bufs = {}
+  local seen = {}
+  for _, ev in ipairs(playback_events) do
+    if ev.buf and not seen[ev.buf] then
+      table.insert(bufs, ev.buf)
+      seen[ev.buf] = true
+    end
+  end
+
   local initial_loc = 0
   for _, bufnr in ipairs(bufs) do
     local state = storage.get_initial_state(bufnr)
@@ -139,16 +149,6 @@ function M.play(opts)
   MAX_EVENTS_PER_TICK = opts.max_events_per_tick or MAX_EVENTS_PER_TICK
  
   ui.set_chrome_enabled(opts.ui_chrome ~= false)
-
-  -- Create scene windows
-  local bufs = {}
-  local seen = {}
-  for _, ev in ipairs(playback_events) do
-    if ev.buf and not seen[ev.buf] then
-      table.insert(bufs, ev.buf)
-      seen[ev.buf] = true
-    end
-  end
 
   if #bufs == 0 then return end
 
